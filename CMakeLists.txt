@@ -1,4 +1,5 @@
-add_executable(app app.c)
+set(CMAKE_CXX_STANDARD 20)
+add_executable(app app.cpp)
 
 set(spdk_link_options -Wl,-z,relro,-z,now -Wl,-z,noexecstack -fuse-ld=bfd)
 set(spdk_root /home/jz/spdk)
