@@ -1,0 +1,36 @@
+[2023-10-31 20:40:11.006140] Starting SPDK v24.01-pre git sha1 68d8ff470 / DPDK 23.07.0 initialization...
+[2023-10-31 20:40:11.006293] [ DPDK EAL parameters: myapp --no-shconf -c 0xff --huge-unlink --log-level=lib.eal:6 --log-level=lib.cryptodev:5 --log-level=user1:6 --iova-mode=pa --base-virtaddr=0x200000000000 --match-allocations --file-prefix=spdk_pid3399089 ]
+EAL: No free 2048 kB hugepages reported on node 1
+TELEMETRY: No legacy callbacks, legacy socket not created
+[2023-10-31 20:40:11.056926] app.c: 786:spdk_app_start: *NOTICE*: Total cores available: 8
+[2023-10-31 20:40:11.558437] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 1
+[2023-10-31 20:40:11.558567] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 2
+[2023-10-31 20:40:11.558666] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 3
+[2023-10-31 20:40:11.558870] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 4
+[2023-10-31 20:40:11.558961] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 5
+[2023-10-31 20:40:11.559166] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 6
+[2023-10-31 20:40:11.559278] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 7
+[2023-10-31 20:40:11.559370] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 0
+[2023-10-31 20:40:11.886555] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 0
+[2023-10-31 20:40:11.886605] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 1
+[2023-10-31 20:40:11.886647] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 2
+[2023-10-31 20:40:11.886685] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 3
+[2023-10-31 20:40:11.886719] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 4
+[2023-10-31 20:40:11.886752] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 5
+[2023-10-31 20:40:11.887089] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 6
+[2023-10-31 20:40:11.887429] /home/jz/spdk_test/app.cpp:  60:myapp: *NOTICE*: creating schedule thread at core 7
+[2023-10-31 20:40:11.888026] /home/jz/spdk_test/app.cpp:  27:read_complete: *NOTICE*: Stopping app
+[2023-10-31 20:40:11.920784] reactor.c: 983:reactor_run: *ERROR*: spdk_thread_exit() was not called on thread '0x559cb94b1200'
+[2023-10-31 20:40:11.920784] reactor.c: 983:reactor_run: *ERROR*: spdk_thread_exit() was not called on thread '0x559cb931fdf0'
+[2023-10-31 20:40:11.920784] reactor.c: 983:reactor_run: *ERROR*: spdk_thread_exit() was not called on thread '0x559cb94b0ae0'
+[2023-10-31 20:40:11.920786] reactor.c: 983:reactor_run: *ERROR*: spdk_thread_exit() was not called on thread '0x559cb9320180'
+[2023-10-31 20:40:11.920786] reactor.c: 983:reactor_run: *ERROR*: spdk_thread_exit() was not called on thread '0x559cb94b0e70'
+[2023-10-31 20:40:11.920786] reactor.c: 983:reactor_run: *ERROR*: spdk_thread_exit() was not called on thread '0x559cb94b0750'
+[2023-10-31 20:40:11.920786] reactor.c: 983:reactor_run: *ERROR*: spdk_thread_exit() was not called on thread '0x559cb931fa60'
+[2023-10-31 20:40:11.921193] reactor.c: 985:reactor_run: *ERROR*: This will result in a non-zero exit code in a future release.
+[2023-10-31 20:40:11.921291] reactor.c: 985:reactor_run: *ERROR*: This will result in a non-zero exit code in a future release.
+[2023-10-31 20:40:11.921386] reactor.c: 985:reactor_run: *ERROR*: This will result in a non-zero exit code in a future release.
+[2023-10-31 20:40:11.921512] reactor.c: 985:reactor_run: *ERROR*: This will result in a non-zero exit code in a future release.
+[2023-10-31 20:40:11.921545] reactor.c: 985:reactor_run: *ERROR*: This will result in a non-zero exit code in a future release.
+[2023-10-31 20:40:11.921576] reactor.c: 985:reactor_run: *ERROR*: This will result in a non-zero exit code in a future release.
+[2023-10-31 20:40:11.921598] reactor.c: 985:reactor_run: *ERROR*: This will result in a non-zero exit code in a future release.
