@@ -1,7 +1,9 @@
 #ifndef SERVICE_H
 #define SERVICE_H
 #include "module.hpp"
+#include "spdk/bdev.h"
 #include "spdk/cpuset.h"
+#include "spdk/env.h"
 #include "spdk/event.h"
 #include "task.hpp"
 #include <algorithm>
@@ -26,10 +28,19 @@
 #endif // !NDEBUG
 
 void service_init(void *args);
+
+void spdk_io_complete_cb(struct spdk_bdev_io *bdev_io, bool success,
+                         void *cb_arg);
+
+void spdk_retry_read(void *args);
+
+void spdk_retry_write(void *args);
+
 struct spdk_service {
   struct reactor_data {
     spdk_thread *thread;
     spdk_io_channel *ch;
+    spdk_bdev_io_wait_entry bdev_io_wait;
     // maybe need dma buffer
     // 这里如果用库分配的dma buffer，那么不是得需要一次copy了，这是个问题
   };
@@ -42,6 +53,7 @@ struct spdk_service {
   int current_core = 0;
   std::barrier<> exit_barrier;
   spdk_bdev_desc *desc;
+  spdk_bdev *bdev;
   const char *bdev_name;
 
   spdk_service(int num_threads, const char *json_file, const char *bdev_name)
@@ -74,9 +86,45 @@ struct spdk_service {
   };
 
   // buf must be dma buffer
-  service_awaiter read(void *buf, int len, size_t offset) {}
+  service_awaiter read(void *buf, int len, size_t offset) {
+    int current_core = spdk_env_get_current_core();
+    service_awaiter awaiter{};
+    int rc = spdk_bdev_read(desc, rds[current_core].ch, buf, offset, len,
+                            spdk_io_complete_cb, &awaiter.res);
+    if (rc == -ENOMEM) {
+      // retry queue io
+#if false
+      rds[current_core].bdev_io_wait.bdev = spdk_bdev_desc_get_bdev(desc);
+      rds[current_core].bdev_io_wait.cb_fn = hello_read;
+      rds[current_core].bdev_io_wait.cb_arg = hello_context;
+      spdk_bdev_queue_io_wait(bdev, rds[current_core].ch,
+                              &rds[current_core].bdev_io_wait);
+#endif
+    } else if (rc) {
+    }
 
-  service_awaiter write(void *buf, int len, size_t offset) {}
+    return awaiter;
+  }
+
+  service_awaiter write(void *buf, int len, size_t offset) {
+    int current_core = spdk_env_get_current_core();
+    service_awaiter awaiter{};
+    int rc = spdk_bdev_write(desc, rds[current_core].ch, buf, offset, len,
+                             spdk_io_complete_cb, &awaiter.res);
+    if (rc == -ENOMEM) {
+      // retry queue io
+#if false
+      rds[current_core].bdev_io_wait.bdev = spdk_bdev_desc_get_bdev(desc);
+      rds[current_core].bdev_io_wait.cb_fn = hello_read;
+      rds[current_core].bdev_io_wait.cb_arg = hello_context;
+      spdk_bdev_queue_io_wait(bdev, rds[current_core].ch,
+                              &rds[current_core].bdev_io_wait);
+#endif
+    } else if (rc) {
+    }
+
+    return awaiter;
+  }
 
   // 本来不应该有这种用法的，不过既然有直接在当前的reactor上运行是不是也可以，
   // 这种不能产生运行结果，所以不进入tasks中
@@ -84,6 +132,8 @@ struct spdk_service {
 
   void run(task<int> &&t) {
     tasks.emplace_back(std::move(t));
+
+    // block until all done
     spdk_app_start(&opts, service_init, this);
   }
 
