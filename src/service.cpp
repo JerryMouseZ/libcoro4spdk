@@ -7,6 +7,15 @@
 #include <cstdint>
 static char json_file[] = "bdev.json";
 
+void spdk_io_complete_cb(struct spdk_bdev_io *bdev_io, bool success,
+                         void *cb_arg) {
+  spdk_bdev_free_io(bdev_io);
+  // resume coroutine
+  spdk_service::result *res = (spdk_service::result *)cb_arg;
+  res->res = success ? 0 : 1;
+  res->coro.resume();
+}
+
 void service_threads_exit(void *args) {
   spdk_service *service = (spdk_service *)args;
   spdk_thread_exit(spdk_get_thread());
@@ -19,7 +28,7 @@ void service_exit(void *args) {
   SPDK_ENV_FOREACH_CORE(i) {
     if (i == spdk_env_get_current_core())
       continue;
-    spdk_thread_send_msg(service->rds[i].thread, service_threads_exit, NULL);
+    spdk_thread_send_msg(service->rds[i].thread, service_threads_exit, service);
   }
   service->exit_barrier.arrive_and_wait();
   SPDK_NOTICELOG("Stopping app\n");
@@ -38,9 +47,10 @@ void service_init(void *args) {
   // open device
   assert(spdk_bdev_open_ext(service->bdev_name, true, myapp_bdev_event_cb,
                             nullptr, &service->desc) == 0);
+  service->bdev = spdk_bdev_desc_get_bdev(service->desc);
 
+  // set cpu
   spdk_cpuset tmpmask;
-
   for (int i = 0; i < service->num_threads; ++i) {
     SPDK_NOTICELOG("creating schedule thread at core %d\n", i);
     if (i == spdk_env_get_current_core()) {
