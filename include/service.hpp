@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iostream>
 #include <pthread.h>
 #include <vector>
 
@@ -61,29 +62,30 @@ struct spdk_service {
     // 这里如果用库分配的dma buffer，那么不是得需要一次copy了，这是个问题
   };
 
+  const char *device_name;
   std::vector<reactor_data> rds;
   std::vector<task<int>> tasks;
   int num_threads;
-  char cpumask[4];
+  char cpumask[8] = "0x";
   spdk_app_opts opts;
   int current_core = 0;
   std::barrier<> exit_barrier;
   spdk_bdev_desc *desc;
   spdk_bdev *bdev;
-  const char *bdev_name;
 
   spdk_service(int num_threads, const char *json_file, const char *bdev_name)
-      : rds(num_threads), bdev_name(bdev_name), exit_barrier(num_threads) {
+      : rds(num_threads), exit_barrier(num_threads), device_name(bdev_name) {
+    /* memcpy(device_name, bdev_name, 16); */
     this->num_threads = num_threads;
     spdk_app_opts_init(&opts, sizeof(opts));
-    opts.name = "myapp";
+    opts.name = "spdk_service";
     opts.json_config_file = json_file;
     spdk_cpuset mask;
     spdk_cpuset_zero(&mask);
     for (int i = 0; i < num_threads; ++i) {
       spdk_cpuset_set_cpu(&mask, i, true);
     }
-    strcpy(cpumask, spdk_cpuset_fmt(&mask));
+    strcpy(cpumask + 2, spdk_cpuset_fmt(&mask));
     opts.reactor_mask = cpumask;
     // 由于app_start调用了之后就阻塞住了，因此这里不能start，而是要等协程都开始运行之后才可以
   }

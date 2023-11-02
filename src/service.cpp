@@ -1,11 +1,11 @@
 #include "service.hpp"
 #include "module.hpp"
 #include "spdk/bdev.h"
+#include "spdk/log.h"
 #include "spdk/thread.h"
 #include <assert.h>
 #include <barrier>
 #include <cstdint>
-static char json_file[] = "bdev.json";
 
 void spdk_io_complete_cb(struct spdk_bdev_io *bdev_io, bool success,
                          void *cb_arg) {
@@ -74,8 +74,9 @@ void myapp_bdev_event_cb(enum spdk_bdev_event_type type, struct spdk_bdev *bdev,
                          void *event_ctx) {}
 void service_init(void *args) {
   spdk_service *service = (spdk_service *)args;
+  SPDK_NOTICELOG("openning %s\n", service->device_name);
   // open device
-  assert(spdk_bdev_open_ext(service->bdev_name, true, myapp_bdev_event_cb,
+  assert(spdk_bdev_open_ext(service->device_name, true, myapp_bdev_event_cb,
                             nullptr, &service->desc) == 0);
   service->bdev = spdk_bdev_desc_get_bdev(service->desc);
 
