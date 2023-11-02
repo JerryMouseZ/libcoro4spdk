@@ -1,6 +1,7 @@
 #ifndef SERVICE_H
 #define SERVICE_H
 #include "module.hpp"
+#include "spdk/accel.h"
 #include "spdk/bdev.h"
 #include "spdk/cpuset.h"
 #include "spdk/env.h"
@@ -13,7 +14,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <list>
 #include <pthread.h>
 #include <vector>
 
@@ -37,10 +37,26 @@ void spdk_retry_read(void *args);
 void spdk_retry_write(void *args);
 
 struct spdk_service {
+  struct result {
+    std::coroutine_handle<> coro;
+    int res;
+  };
+
+  struct retry_context {
+    spdk_bdev_desc *desc;
+    spdk_io_channel *ch;
+    void *buf;
+    int len;
+    size_t offset;
+    result *res;
+  };
+
+  // cacheline aligned will be better to prevent races
   struct reactor_data {
     spdk_thread *thread;
     spdk_io_channel *ch;
     spdk_bdev_io_wait_entry bdev_io_wait;
+    retry_context context;
     // maybe need dma buffer
     // 这里如果用库分配的dma buffer，那么不是得需要一次copy了，这是个问题
   };
@@ -72,17 +88,13 @@ struct spdk_service {
     // 由于app_start调用了之后就阻塞住了，因此这里不能start，而是要等协程都开始运行之后才可以
   }
 
-  struct result {
-    std::coroutine_handle<> coro;
-    int res;
-  };
-
   struct service_awaiter {
     result res;
-    bool await_ready() { return false; }
+    bool ready;
+    bool await_ready() { return ready; }
     auto await_suspend(std::coroutine_handle<> coro) { res.coro = coro; }
     auto await_resume() { return res.res; }
-    explicit service_awaiter(){};
+    explicit service_awaiter() : ready(false) {}
   };
 
   // buf must be dma buffer
@@ -93,14 +105,18 @@ struct spdk_service {
                             spdk_io_complete_cb, &awaiter.res);
     if (rc == -ENOMEM) {
       // retry queue io
-#if false
       rds[current_core].bdev_io_wait.bdev = spdk_bdev_desc_get_bdev(desc);
-      rds[current_core].bdev_io_wait.cb_fn = hello_read;
-      rds[current_core].bdev_io_wait.cb_arg = hello_context;
+      rds[current_core].bdev_io_wait.cb_fn = spdk_retry_read;
+      rds[current_core].context.buf = buf;
+      rds[current_core].context.len = len;
+      rds[current_core].context.offset = offset;
+      rds[current_core].context.res = &awaiter.res;
+      rds[current_core].bdev_io_wait.cb_arg = &rds[current_core].context;
       spdk_bdev_queue_io_wait(bdev, rds[current_core].ch,
                               &rds[current_core].bdev_io_wait);
-#endif
     } else if (rc) {
+      // don't use awaiter
+      awaiter.ready = true;
     }
 
     return awaiter;
@@ -113,13 +129,15 @@ struct spdk_service {
                              spdk_io_complete_cb, &awaiter.res);
     if (rc == -ENOMEM) {
       // retry queue io
-#if false
       rds[current_core].bdev_io_wait.bdev = spdk_bdev_desc_get_bdev(desc);
-      rds[current_core].bdev_io_wait.cb_fn = hello_read;
-      rds[current_core].bdev_io_wait.cb_arg = hello_context;
+      rds[current_core].bdev_io_wait.cb_fn = spdk_retry_read;
+      rds[current_core].context.buf = buf;
+      rds[current_core].context.len = len;
+      rds[current_core].context.offset = offset;
+      rds[current_core].context.res = &awaiter.res;
+      rds[current_core].bdev_io_wait.cb_arg = &rds[current_core].context;
       spdk_bdev_queue_io_wait(bdev, rds[current_core].ch,
                               &rds[current_core].bdev_io_wait);
-#endif
     } else if (rc) {
     }
 
@@ -142,4 +160,4 @@ struct spdk_service {
     run(args...);
   }
 };
-#endif // !DEBUG
+#endif

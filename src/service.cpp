@@ -16,6 +16,36 @@ void spdk_io_complete_cb(struct spdk_bdev_io *bdev_io, bool success,
   res->coro.resume();
 }
 
+void spdk_retry_read(void *args) {
+  struct spdk_service::retry_context *ctx =
+      (struct spdk_service::retry_context *)args;
+  int rc = spdk_bdev_read(ctx->desc, ctx->ch, ctx->buf, ctx->offset, ctx->len,
+                          spdk_io_complete_cb, ctx->res);
+  if (rc == -ENOMEM) {
+    // retry again
+    /* spdk_bdev_queue_io_wait(ctx->bdev, ctx->ch, */
+    /*                         &rds[current_core].bdev_io_wait); */
+  } else if (rc) {
+    ctx->res->res = rc;
+    ctx->res->coro.resume();
+  }
+}
+
+void spdk_retry_write(void *args) {
+  struct spdk_service::retry_context *ctx =
+      (struct spdk_service::retry_context *)args;
+  int rc = spdk_bdev_write(ctx->desc, ctx->ch, ctx->buf, ctx->offset, ctx->len,
+                           spdk_io_complete_cb, ctx->res);
+  if (rc == -ENOMEM) {
+    // retry again
+    /* spdk_bdev_queue_io_wait(ctx->bdev, ctx->ch, */
+    /*                         &rds[current_core].bdev_io_wait); */
+  } else if (rc) {
+    ctx->res->res = rc;
+    ctx->res->coro.resume();
+  }
+}
+
 void service_threads_exit(void *args) {
   spdk_service *service = (spdk_service *)args;
   spdk_thread_exit(spdk_get_thread());
@@ -56,6 +86,8 @@ void service_init(void *args) {
     if (i == spdk_env_get_current_core()) {
       service->rds[i].thread = spdk_get_thread();
       service->rds[i].ch = spdk_bdev_get_io_channel(service->desc);
+      service->rds[i].context.ch = service->rds[i].ch;
+      service->rds[i].context.desc = service->desc;
       continue;
     }
     spdk_cpuset_zero(&tmpmask);
@@ -63,6 +95,8 @@ void service_init(void *args) {
     // create schedule thread
     service->rds[i].thread = spdk_thread_create(NULL, &tmpmask);
     service->rds[i].ch = spdk_bdev_get_io_channel(service->desc);
+    service->rds[i].context.ch = service->rds[i].ch;
+    service->rds[i].context.desc = service->desc;
   }
 
   // round roubin
