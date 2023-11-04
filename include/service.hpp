@@ -15,6 +15,7 @@
 #include <cstring>
 #include <iostream>
 #include <pthread.h>
+#include <ranges>
 #include <vector>
 
 #ifndef NDEBUG
@@ -144,11 +145,9 @@ struct spdk_service {
 
   // 本来不应该有这种用法的，不过既然有直接在当前的reactor上运行是不是也可以，
   // 这种不能产生运行结果，所以不进入tasks中
-  void add_task(task<void> &&t) { t.start(); }
+  void launch_task_on_fire(task<void> &&t) { t.start(); }
 
-  void run(task<int> &&t) {
-    tasks.emplace_back(std::move(t));
-
+  void execute() {
     spdk_app_opts opts;
     spdk_app_opts_init(&opts, sizeof(opts));
     opts.name = "spdk_service";
@@ -165,9 +164,20 @@ struct spdk_service {
     spdk_app_start(&opts, service_init, this);
   }
 
-  template <typename... Args> void run(task<int> &&t, Args... args) {
+  void run(task<int> &&t) {
     tasks.emplace_back(std::move(t));
-    run(args...);
+    execute();
+  }
+
+  void add_task(task<int> &&t) { tasks.emplace_back(std::move(t)); }
+
+  void run() { execute(); }
+
+  template <typename Range> void run_all(Range &range) {
+    for (auto &element : range) {
+      tasks.emplace_back(std::move(element));
+    }
+    execute();
   }
 };
 
