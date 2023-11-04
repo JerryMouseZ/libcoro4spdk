@@ -3,8 +3,10 @@
 #include "spdk/bdev.h"
 #include "spdk/log.h"
 #include "spdk/thread.h"
+#include "task.hpp"
 #include <assert.h>
 #include <barrier>
+#include <coroutine>
 #include <cstdint>
 
 spdk_service *g_service = nullptr;
@@ -68,9 +70,20 @@ void task_done() {
   }
 }
 
+struct task_run_awaitable {
+  using handle = std::coroutine_handle<task<int>::promise_type>;
+  handle _h;
+  bool await_ready() const noexcept { return false; }
+  auto await_suspend(std::coroutine_handle<> caller) noexcept {
+    _h.promise()._caller = caller;
+    return _h;
+  }
+  void await_resume() {}
+};
+
 task<void> task_run(void *args) {
   task<int> *t = (task<int> *)args;
-  co_await *t;
+  co_await task_run_awaitable{t->_h};
   task_done();
 }
 
