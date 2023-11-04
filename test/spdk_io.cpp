@@ -3,6 +3,7 @@
 #include "task.hpp"
 #include <catch2/catch_all.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <vector>
 const char *json_file = "bdev.json";
 const char *bdev_dev = "Malloc0";
 task<int> simple_write_read() {
@@ -21,5 +22,12 @@ task<int> simple_write_read() {
 TEST_CASE("simple_io", "simple_write_read") {
   init_service(1, json_file, bdev_dev);
   g_service->run(simple_write_read());
+  deinit_service();
+}
+
+TEST_CASE("multithread_io", "multiple_write_read") {
+  init_service(8, json_file, bdev_dev);
+  for (int i = 0; i < 8; ++i)
+    g_service->add_task(simple_write_read());
   deinit_service();
 }
