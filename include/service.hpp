@@ -62,31 +62,22 @@ struct spdk_service {
     // 这里如果用库分配的dma buffer，那么不是得需要一次copy了，这是个问题
   };
 
-  const char *device_name;
+  char device_name[16];
+  char json_file[16];
   std::vector<task<int>> tasks;
   int num_threads;
   char cpumask[8] = "0x";
-  int current_core = 0;
   std::barrier<> exit_barrier;
   spdk_bdev_desc *desc;
   spdk_bdev *bdev;
   std::vector<reactor_data> rds;
-  spdk_app_opts opts;
+  /* int current_core = 0; */
 
   spdk_service(int num_threads, const char *json_file, const char *bdev_name)
-      : rds(num_threads), exit_barrier(num_threads), device_name(bdev_name) {
-    /* memcpy(device_name, bdev_name, 16); */
+      : rds(num_threads), exit_barrier(num_threads) {
+    strncpy(device_name, bdev_name, 16);
+    strncpy(this->json_file, json_file, 16);
     this->num_threads = num_threads;
-    spdk_app_opts_init(&opts, sizeof(opts));
-    opts.name = "spdk_service";
-    opts.json_config_file = json_file;
-    spdk_cpuset mask;
-    spdk_cpuset_zero(&mask);
-    for (int i = 0; i < num_threads; ++i) {
-      spdk_cpuset_set_cpu(&mask, i, true);
-    }
-    strcpy(cpumask + 2, spdk_cpuset_fmt(&mask));
-    opts.reactor_mask = cpumask;
     // 由于app_start调用了之后就阻塞住了，因此这里不能start，而是要等协程都开始运行之后才可以
   }
 
@@ -119,6 +110,7 @@ struct spdk_service {
     } else if (rc) {
       // don't use awaiter
       awaiter.ready = true;
+      awaiter.res.res = rc;
     }
 
     return awaiter;
@@ -152,6 +144,18 @@ struct spdk_service {
 
   void run(task<int> &&t) {
     tasks.emplace_back(std::move(t));
+
+    spdk_app_opts opts;
+    spdk_app_opts_init(&opts, sizeof(opts));
+    opts.name = "spdk_service";
+    opts.json_config_file = json_file;
+    spdk_cpuset mask;
+    spdk_cpuset_zero(&mask);
+    for (int i = 0; i < num_threads; ++i) {
+      spdk_cpuset_set_cpu(&mask, i, true);
+    }
+    strcpy(cpumask + 2, spdk_cpuset_fmt(&mask));
+    opts.reactor_mask = cpumask;
 
     // block until all done
     spdk_app_start(&opts, service_init, this);
