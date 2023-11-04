@@ -1,6 +1,7 @@
 #include "service.hpp"
 #include "module.hpp"
 #include "spdk/bdev.h"
+#include "spdk/env.h"
 #include "spdk/log.h"
 #include "spdk/thread.h"
 #include "task.hpp"
@@ -51,22 +52,24 @@ void spdk_retry_write(void *args) {
   }
 }
 
-void service_exit(void *args) {
-  if (--g_service->alive_reactors == 0) {
-    spdk_bdev_close(g_service->desc);
-    SPDK_NOTICELOG("Stopping app\n");
+void thread_exit(void *args) { spdk_thread_exit(spdk_get_thread()); }
+
+void service_exit() {
+  spdk_bdev_close(g_service->desc);
+  // release io channel
+  for (int i = 0; i < g_service->num_threads; ++i) {
+    spdk_put_io_channel(g_service->rds[i].ch);
+    // main_thread不需要调用exit
+    if (i != 0)
+      spdk_thread_send_msg(g_service->rds[i].thread, thread_exit, nullptr);
   }
+  SPDK_NOTICELOG("Stopping app\n");
   spdk_app_stop(0);
 }
 
-// 每个线程的最后一个task完成时退出当前spdk线程
-// 所有task都退出时提醒main_thread调用app_stop
-void task_done() {
-  int current_core = spdk_env_get_current_core();
-  if (--g_service->rds[current_core].alive_tasks == 0) {
-    spdk_put_io_channel(g_service->rds[current_core].ch);
-    spdk_thread_exit(spdk_get_thread());
-    spdk_thread_send_msg(main_thread, service_exit, nullptr);
+void task_done(void *args) {
+  if (--g_service->alive_tasks == 0) {
+    service_exit();
   }
 }
 
@@ -84,7 +87,9 @@ struct task_run_awaitable {
 task<void> task_run(void *args) {
   task<int> *t = (task<int> *)args;
   co_await task_run_awaitable{t->_h};
-  task_done();
+  // 不理解为什么到这里的时候执行就到了reactor 0上
+  // 创建线程的时候明明是另外一个核心上运行的
+  spdk_thread_send_msg(main_thread, task_done, nullptr);
 }
 
 void service_thread_run(void *args) {
@@ -101,10 +106,12 @@ void service_init(void *args) {
                             nullptr, &g_service->desc) == 0);
   g_service->bdev = spdk_bdev_desc_get_bdev(g_service->desc);
 
+  // 难道spdk_thread_create只会创建在当前reactor上吗，不应该吧
   // set cpu
   spdk_cpuset tmpmask;
   spdk_thread *thread;
-  for (int i = 0; i < g_service->num_threads; ++i) {
+  uint32_t i;
+  SPDK_ENV_FOREACH_CORE(i) {
     SPDK_NOTICELOG("creating schedule thread at core %d\n", i);
     if (i != spdk_env_get_current_core()) {
       // create schedule thread
@@ -125,7 +132,7 @@ void service_init(void *args) {
   // round roubin
   for (int i = 0; i < g_service->tasks.size(); ++i) {
     int core = i % g_service->num_threads;
-    g_service->rds[core].alive_tasks++;
+    g_service->alive_tasks++;
     spdk_thread_send_msg(g_service->rds[i].thread, service_thread_run,
                          &g_service->tasks[i]);
   }
@@ -137,6 +144,7 @@ void init_service(int thread_num, const char *json_file,
 }
 
 void deinit_service() {
+  spdk_app_fini();
   delete g_service;
   g_service = nullptr;
 }
