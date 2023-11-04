@@ -63,7 +63,7 @@ void service_exit() {
     if (i != 0)
       spdk_thread_send_msg(g_service->rds[i].thread, thread_exit, nullptr);
   }
-  SPDK_NOTICELOG("Stopping app\n");
+  DEBUG_PRINTF("Stopping app\n");
   spdk_app_stop(0);
 }
 
@@ -100,7 +100,7 @@ void service_thread_run(void *args) {
 void myapp_bdev_event_cb(enum spdk_bdev_event_type type, struct spdk_bdev *bdev,
                          void *event_ctx) {}
 void service_init(void *args) {
-  SPDK_NOTICELOG("openning %s\n", g_service->device_name);
+  DEBUG_PRINTF("openning %s\n", g_service->device_name);
   // open device
   assert(spdk_bdev_open_ext(g_service->device_name, true, myapp_bdev_event_cb,
                             nullptr, &g_service->desc) == 0);
@@ -112,7 +112,7 @@ void service_init(void *args) {
   spdk_thread *thread;
   uint32_t i;
   SPDK_ENV_FOREACH_CORE(i) {
-    SPDK_NOTICELOG("creating schedule thread at core %d\n", i);
+    DEBUG_PRINTF("creating schedule thread at core %d\n", i);
     if (i != spdk_env_get_current_core()) {
       // create schedule thread
       spdk_cpuset_zero(&tmpmask);
