@@ -7,6 +7,9 @@
 #include <barrier>
 #include <cstdint>
 
+spdk_service *g_service = nullptr;
+spdk_thread *main_thread = nullptr;
+
 void spdk_io_complete_cb(struct spdk_bdev_io *bdev_io, bool success,
                          void *cb_arg) {
   spdk_bdev_free_io(bdev_io);
@@ -46,69 +49,81 @@ void spdk_retry_write(void *args) {
   }
 }
 
-void service_threads_exit(void *args) {
-  spdk_service *service = (spdk_service *)args;
-  spdk_thread_exit(spdk_get_thread());
-  service->exit_barrier.arrive_and_drop();
-}
-
 void service_exit(void *args) {
-  spdk_service *service = (spdk_service *)args;
-  uint32_t i;
-  SPDK_ENV_FOREACH_CORE(i) {
-    if (i == spdk_env_get_current_core())
-      continue;
-    spdk_thread_send_msg(service->rds[i].thread, service_threads_exit, service);
+  if (--g_service->alive_reactors == 0) {
+    spdk_bdev_close(g_service->desc);
+    SPDK_NOTICELOG("Stopping app\n");
   }
-  service->exit_barrier.arrive_and_wait();
-  SPDK_ENV_FOREACH_CORE(i) { spdk_put_io_channel(service->rds[i].ch); }
-  spdk_bdev_close(service->desc);
-  SPDK_NOTICELOG("Stopping app\n");
   spdk_app_stop(0);
 }
 
-void service_thread_run(void *args) {
+// 每个线程的最后一个task完成时退出当前spdk线程
+// 所有task都退出时提醒main_thread调用app_stop
+void task_done() {
+  int current_core = spdk_env_get_current_core();
+  if (--g_service->rds[current_core].alive_tasks == 0) {
+    spdk_put_io_channel(g_service->rds[current_core].ch);
+    spdk_thread_exit(spdk_get_thread());
+    spdk_thread_send_msg(main_thread, service_exit, nullptr);
+  }
+}
+
+task<void> task_run(void *args) {
   task<int> *t = (task<int> *)args;
-  t->start();
+  co_await *t;
+  task_done();
+}
+
+void service_thread_run(void *args) {
+  task<void> t = task_run(args);
+  t.start();
 }
 
 void myapp_bdev_event_cb(enum spdk_bdev_event_type type, struct spdk_bdev *bdev,
                          void *event_ctx) {}
 void service_init(void *args) {
-  spdk_service *service = (spdk_service *)args;
-  SPDK_NOTICELOG("openning %s\n", service->device_name);
+  SPDK_NOTICELOG("openning %s\n", g_service->device_name);
   // open device
-  assert(spdk_bdev_open_ext(service->device_name, true, myapp_bdev_event_cb,
-                            nullptr, &service->desc) == 0);
-  service->bdev = spdk_bdev_desc_get_bdev(service->desc);
+  assert(spdk_bdev_open_ext(g_service->device_name, true, myapp_bdev_event_cb,
+                            nullptr, &g_service->desc) == 0);
+  g_service->bdev = spdk_bdev_desc_get_bdev(g_service->desc);
 
   // set cpu
   spdk_cpuset tmpmask;
-  for (int i = 0; i < service->num_threads; ++i) {
+  spdk_thread *thread;
+  for (int i = 0; i < g_service->num_threads; ++i) {
     SPDK_NOTICELOG("creating schedule thread at core %d\n", i);
-    if (i == spdk_env_get_current_core()) {
-      service->rds[i].thread = spdk_get_thread();
-      service->rds[i].ch = spdk_bdev_get_io_channel(service->desc);
-      service->rds[i].context.ch = service->rds[i].ch;
-      service->rds[i].context.desc = service->desc;
-      continue;
+    if (i != spdk_env_get_current_core()) {
+      // create schedule thread
+      spdk_cpuset_zero(&tmpmask);
+      spdk_cpuset_set_cpu(&tmpmask, i, true);
+      thread = spdk_thread_create(NULL, &tmpmask);
+    } else {
+      thread = spdk_get_thread();
+      main_thread = thread;
     }
-    spdk_cpuset_zero(&tmpmask);
-    spdk_cpuset_set_cpu(&tmpmask, i, true);
-    // create schedule thread
-    service->rds[i].thread = spdk_thread_create(NULL, &tmpmask);
-    service->rds[i].ch = spdk_bdev_get_io_channel(service->desc);
-    service->rds[i].context.ch = service->rds[i].ch;
-    service->rds[i].context.desc = service->desc;
+    g_service->rds[i].thread = thread;
+    g_service->rds[i].ch = spdk_bdev_get_io_channel(g_service->desc);
+    g_service->rds[i].context.ch = g_service->rds[i].ch;
+    g_service->rds[i].context.desc = g_service->desc;
+    g_service->rds[i].context.bdev = g_service->bdev;
   }
 
   // round roubin
-  for (int i = 0; i < service->tasks.size(); ++i) {
-    int core = (i + 1) % service->num_threads;
-    spdk_thread_send_msg(service->rds[i].thread, service_thread_run,
-                         &service->tasks[i]);
+  for (int i = 0; i < g_service->tasks.size(); ++i) {
+    int core = i % g_service->num_threads;
+    g_service->rds[core].alive_tasks++;
+    spdk_thread_send_msg(g_service->rds[i].thread, service_thread_run,
+                         &g_service->tasks[i]);
   }
+}
 
-  // waiting for exit
-  spdk_thread_send_msg(service->rds[0].thread, service_exit, service);
+void init_service(int thread_num, const char *json_file,
+                  const char *device_name) {
+  g_service = new spdk_service(thread_num, json_file, device_name);
+}
+
+void deinit_service() {
+  delete g_service;
+  g_service = nullptr;
 }

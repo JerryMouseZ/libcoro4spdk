@@ -8,7 +8,6 @@
 #include "spdk/event.h"
 #include "task.hpp"
 #include <algorithm>
-#include <barrier>
 #include <cassert>
 #include <coroutine>
 #include <cstddef>
@@ -44,6 +43,7 @@ struct spdk_service {
   };
 
   struct retry_context {
+    spdk_bdev *bdev;
     spdk_bdev_desc *desc;
     spdk_io_channel *ch;
     void *buf;
@@ -58,6 +58,7 @@ struct spdk_service {
     spdk_io_channel *ch;
     spdk_bdev_io_wait_entry bdev_io_wait;
     retry_context context;
+    int alive_tasks;
     // maybe need dma buffer
     // 这里如果用库分配的dma buffer，那么不是得需要一次copy了，这是个问题
   };
@@ -67,17 +68,17 @@ struct spdk_service {
   std::vector<task<int>> tasks;
   int num_threads;
   char cpumask[8] = "0x";
-  std::barrier<> exit_barrier;
   spdk_bdev_desc *desc;
   spdk_bdev *bdev;
   std::vector<reactor_data> rds;
+  int alive_reactors;
   /* int current_core = 0; */
 
   spdk_service(int num_threads, const char *json_file, const char *bdev_name)
-      : rds(num_threads), exit_barrier(num_threads) {
+      : rds(num_threads), num_threads(num_threads),
+        alive_reactors(num_threads) {
     strncpy(device_name, bdev_name, 16);
     strncpy(this->json_file, json_file, 16);
-    this->num_threads = num_threads;
     // 由于app_start调用了之后就阻塞住了，因此这里不能start，而是要等协程都开始运行之后才可以
   }
 
@@ -169,4 +170,9 @@ struct spdk_service {
     run(args...);
   }
 };
+
+extern spdk_service *g_service;
+void init_service(int thread_num, const char *json_file,
+                  const char *device_name);
+void deinit_service();
 #endif
