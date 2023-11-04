@@ -5,8 +5,8 @@
 #include <catch2/catch_test_macros.hpp>
 const char *json_file = "bdev.json";
 const char *bdev_dev = "Malloc0";
-
-task<int> simple_write_read(spdk_service *service) {
+spdk_service *service;
+task<int> simple_write_read() {
   // 不用担心，因为这个协程肯定是执行在spdk线程里的
   char *dma_buf = (char *)spdk_dma_zmalloc(4096, 4096, nullptr);
   strcpy(dma_buf, "hello world");
@@ -20,6 +20,6 @@ task<int> simple_write_read(spdk_service *service) {
 }
 
 TEST_CASE("simple_io", "simple_write_read") {
-  spdk_service *service = new spdk_service(1, json_file, bdev_dev);
-  service->run(simple_write_read(service));
+  service = new spdk_service(1, json_file, bdev_dev);
+  service->run(simple_write_read());
 }

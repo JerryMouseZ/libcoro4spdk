@@ -61,6 +61,8 @@ void service_exit(void *args) {
     spdk_thread_send_msg(service->rds[i].thread, service_threads_exit, service);
   }
   service->exit_barrier.arrive_and_wait();
+  SPDK_ENV_FOREACH_CORE(i) { spdk_put_io_channel(service->rds[i].ch); }
+  spdk_bdev_close(service->desc);
   SPDK_NOTICELOG("Stopping app\n");
   spdk_app_stop(0);
 }
