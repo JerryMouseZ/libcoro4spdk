@@ -88,6 +88,10 @@ struct spdk_service {
     auto await_suspend(std::coroutine_handle<> coro) { res.coro = coro; }
     auto await_resume() { return res.res; }
     explicit service_awaiter() : ready(false) {}
+    void set_failure(int rc) {
+      res.res = rc;
+      ready = true;
+    }
   };
 
   // buf must be dma buffer
@@ -108,9 +112,7 @@ struct spdk_service {
       spdk_bdev_queue_io_wait(bdev, rds[current_core].ch,
                               &rds[current_core].bdev_io_wait);
     } else if (rc) {
-      // don't use awaiter
-      awaiter.ready = true;
-      awaiter.res.res = rc;
+      awaiter.set_failure(rc);
     }
 
     return awaiter;
@@ -133,6 +135,7 @@ struct spdk_service {
       spdk_bdev_queue_io_wait(bdev, rds[current_core].ch,
                               &rds[current_core].bdev_io_wait);
     } else if (rc) {
+      awaiter.set_failure(rc);
     }
 
     return awaiter;
