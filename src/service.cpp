@@ -52,16 +52,21 @@ void spdk_retry_write(void *args) {
   }
 }
 
-void thread_exit(void *args) { spdk_thread_exit(spdk_get_thread()); }
+void thread_exit(void *args) {
+  spdk_service::reactor_data *rd = (spdk_service::reactor_data *)args;
+  spdk_put_io_channel(rd->ch);
+  spdk_thread_exit(spdk_get_thread());
+}
 
 void service_exit() {
   spdk_bdev_close(g_service->desc);
-  // release io channel
   for (int i = 0; i < g_service->num_threads; ++i) {
-    spdk_put_io_channel(g_service->rds[i].ch);
-    // main_thread不需要调用exit
-    if (i != 0)
-      spdk_thread_send_msg(g_service->rds[i].thread, thread_exit, nullptr);
+    if (i == 0) {
+      spdk_put_io_channel(g_service->rds[i].ch);
+    } else {
+      spdk_thread_send_msg(g_service->rds[i].thread, thread_exit,
+                           &g_service->rds[i]);
+    }
   }
   DEBUG_PRINTF("Stopping app\n");
   spdk_app_stop(0);
@@ -99,6 +104,14 @@ void service_thread_run(void *args) {
 
 void myapp_bdev_event_cb(enum spdk_bdev_event_type type, struct spdk_bdev *bdev,
                          void *event_ctx) {}
+
+void thread_init_get_channel(void *args) {
+  spdk_service::reactor_data *rd = (spdk_service::reactor_data *)args;
+  // get_io_channel绑定了当前线程，所以需要发给对应的线程去创建
+  rd->ch = spdk_bdev_get_io_channel(g_service->desc);
+  rd->context.ch = rd->ch;
+}
+
 void service_init(void *args) {
   DEBUG_PRINTF("openning %s\n", g_service->device_name);
   // open device
@@ -123,10 +136,9 @@ void service_init(void *args) {
       main_thread = thread;
     }
     g_service->rds[i].thread = thread;
-    g_service->rds[i].ch = spdk_bdev_get_io_channel(g_service->desc);
-    g_service->rds[i].context.ch = g_service->rds[i].ch;
     g_service->rds[i].context.desc = g_service->desc;
     g_service->rds[i].context.bdev = g_service->bdev;
+    spdk_thread_send_msg(thread, thread_init_get_channel, &g_service->rds[i]);
   }
 
   // round roubin
