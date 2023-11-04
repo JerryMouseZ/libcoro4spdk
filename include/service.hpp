@@ -118,6 +118,8 @@ struct spdk_service {
     return awaiter;
   }
 
+  // read/write根据channel所在的线程，会将io请求发送到对应的spdk线程上
+  // 可以根据这个进行一些调度
   service_awaiter write(void *buf, int len, size_t offset) {
     int current_core = spdk_env_get_current_core();
     service_awaiter awaiter{};
