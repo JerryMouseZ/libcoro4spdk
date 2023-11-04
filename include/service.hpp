@@ -63,15 +63,15 @@ struct spdk_service {
   };
 
   const char *device_name;
-  std::vector<reactor_data> rds;
   std::vector<task<int>> tasks;
   int num_threads;
   char cpumask[8] = "0x";
-  spdk_app_opts opts;
   int current_core = 0;
   std::barrier<> exit_barrier;
   spdk_bdev_desc *desc;
   spdk_bdev *bdev;
+  std::vector<reactor_data> rds;
+  spdk_app_opts opts;
 
   spdk_service(int num_threads, const char *json_file, const char *bdev_name)
       : rds(num_threads), exit_barrier(num_threads), device_name(bdev_name) {

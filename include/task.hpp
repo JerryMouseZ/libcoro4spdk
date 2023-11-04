@@ -83,6 +83,8 @@ template <class T> struct task {
   task(task &) = delete;
   task(task &&t) : _h(t._h) { t._h = nullptr; }
   ~task() {
+    if (_h == nullptr)
+      return;
     if (_h.done())
       _h.destroy();
     else
