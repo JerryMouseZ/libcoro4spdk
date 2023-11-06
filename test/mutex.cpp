@@ -6,13 +6,17 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdio>
 #include <vector>
+
 const char *json_file = "bdev.json";
 const char *bdev_dev = "Malloc0";
+const int n_reactor = 8;
+const int n_round = 100000;
 
 int i = 0;
 async_simple::coro::Mutex mutex;
+
 task<int> lock_test() {
-  for (int j = 0; j < 100000; ++j) {
+  for (int j = 0; j < n_round; ++j) {
     co_await mutex.coLock();
     i++;
     mutex.unlock();
@@ -21,11 +25,11 @@ task<int> lock_test() {
 }
 
 TEST_CASE("simple_lock", "simple_lock") {
-  init_service(8, json_file, bdev_dev);
-  for (int i = 0; i < 8; ++i) {
+  init_service(n_reactor, json_file, bdev_dev);
+  for (int i = 0; i < n_reactor; ++i) {
     g_service->add_task(lock_test());
   }
   g_service->run();
-  REQUIRE(i == 8 * 100000);
+  REQUIRE(i == n_reactor * n_round);
   deinit_service();
 }
