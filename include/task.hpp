@@ -60,8 +60,9 @@ template <class T> struct task {
       bool await_ready() const noexcept { return false; }
       auto await_suspend(std::coroutine_handle<promise_type> callee) noexcept {
         auto next = callee.promise()._caller;
-        if (callee.promise().task_destroyed_)
+        if (callee.promise().task_destroyed_) {
           callee.destroy();
+        }
         return next;
       }
       void await_resume() noexcept {}
@@ -85,8 +86,9 @@ template <class T> struct task {
   ~task() {
     if (_h == nullptr)
       return;
-    if (_h.done())
+    if (_h.done()) {
       _h.destroy();
+    }
     else
       _h.promise().task_destroyed_ = true;
   }
@@ -131,8 +133,9 @@ template <> struct task<void> {
       bool await_ready() const noexcept { return false; }
       auto await_suspend(std::coroutine_handle<promise_type> callee) noexcept {
         auto next = callee.promise()._caller;
-        if (callee.promise().task_destroyed_)
+        if (callee.promise().task_destroyed_) {
           callee.destroy();
+        }
         return next;
       }
       void await_resume() noexcept {}
@@ -154,8 +157,9 @@ template <> struct task<void> {
   ~task() {
     if (_h == nullptr)
       return;
-    if (_h.done())
+    if (_h.done()) {
       _h.destroy();
+    }
     else {
       _h.promise().task_destroyed_ = true;
     }

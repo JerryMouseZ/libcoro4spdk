@@ -79,7 +79,7 @@ void task_done(void *args) {
 }
 
 struct task_run_awaitable {
-  using handle = std::coroutine_handle<task<int>::promise_type>;
+  using handle = std::coroutine_handle<task<int>::promise_type>;  // NOTICE: 感觉此处不能固定模板类型，应该也用模板类型，比如T
   handle _h;
   bool await_ready() const noexcept { return false; }
   auto await_suspend(std::coroutine_handle<> caller) noexcept {
@@ -90,7 +90,7 @@ struct task_run_awaitable {
 };
 
 task<void> task_run(void *args) {
-  task<int> *t = (task<int> *)args;
+  task<int> *t = (task<int> *)args;   // NOTICE：我觉得这里不能固定模板类型，因为本就无法确定task的类型
   co_await task_run_awaitable{t->_h};
   // 不理解为什么到这里的时候执行就到了reactor 0上
   // 创建线程的时候明明是另外一个核心上运行的
@@ -101,6 +101,19 @@ void service_thread_run(void *args) {
   task<void> t = task_run(args);
   t.start();
 }
+
+void service_thread_run_yield(void *args) {
+  std::coroutine_handle<> h = std::coroutine_handle<>::from_address(args);
+  h.resume(); 
+}
+
+
+bool YieldAwaiter::await_ready() noexcept { return false; }
+void YieldAwaiter::await_suspend(std::coroutine_handle<> continuation) noexcept {
+  spdk_thread_send_msg(spdk_get_thread(), service_thread_run_yield, continuation.address());
+}
+void YieldAwaiter::await_resume() noexcept {}
+
 
 void myapp_bdev_event_cb(enum spdk_bdev_event_type type, struct spdk_bdev *bdev,
                          void *event_ctx) {}

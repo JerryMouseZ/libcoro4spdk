@@ -185,4 +185,11 @@ extern spdk_service *g_service;
 void init_service(int thread_num, const char *json_file,
                   const char *device_name);
 void deinit_service();
+
+struct YieldAwaiter {
+  bool await_ready() noexcept;
+  void await_suspend(std::coroutine_handle<> continuation) noexcept;
+  void await_resume() noexcept;
+};
+
 #endif
