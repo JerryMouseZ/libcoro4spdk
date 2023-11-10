@@ -7,6 +7,7 @@
 #include <coroutine>
 #include <cstdio>
 #include <optional>
+#include <utility>
 
 // Lazy Task
 
@@ -85,11 +86,15 @@ template <class T> struct task {
     }
 
     // 这个是co_await的返回值，也就是子协程的返回值，可以保证await_resume的时候子协程已经结束了，所以返回值一定是有效的
-    T await_resume() { return _h.promise()._value.value(); }
+    T await_resume() {
+      auto r = std::move(_h.promise()._value.value());
+      _h.destroy();
+      return r;
+    }
     handle _h;
   };
 
-  auto operator co_await() { return Awaiter{_h}; }
+  auto operator co_await() { return Awaiter{std::exchange(_h, nullptr)}; }
   // 还是不要定义这个函数了，因为协程很可能因为暂停了没有执行完，这样返回值是无效的
   T operator()() = delete;
   /* T operator()() { */
@@ -151,10 +156,10 @@ template <> struct task<void> {
     }
 
     // 这个是co_await的返回值，也就是子协程的返回值，可以保证await_resume的时候子协程已经结束了，所以返回值一定是有效的
-    void await_resume() {}
+    void await_resume() { _h.destroy(); }
     handle _h;
   };
-  auto operator co_await() { return Awaiter{_h}; }
+  auto operator co_await() { return Awaiter{std::exchange(_h, nullptr)}; }
 
   // 还是不要定义这个函数了，因为协程很可能因为暂停了没有执行完，这样返回值是无效的
   void operator()() = delete;
