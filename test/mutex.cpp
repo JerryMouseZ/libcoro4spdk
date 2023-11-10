@@ -24,7 +24,7 @@ task<int> lock_test() {
   co_return 0;
 }
 
-TEST_CASE("simple_lock", "simple_lock") {
+TEST_CASE("mutex_lock", "simple_lock") {
   init_service(n_reactor, json_file, bdev_dev);
   for (int i = 0; i < n_reactor; ++i) {
     g_service->add_task(lock_test());

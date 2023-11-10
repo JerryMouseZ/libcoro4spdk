@@ -25,23 +25,6 @@
 // 以此类推，直到最外层的协程，这时整个协程运行结束
 // 然后可以通过get()获取返回值，如果还没有返回值，get()会返回std::nullopt，出现错误
 
-// 在协程内部，我们可以使用co_await get_current_handle()来获取当前协程的handle
-// for get current coroutine handle
-// usage: auto handle = co_await get_current_handle();
-static auto get_current_handle() {
-  struct current {
-    bool await_ready() const noexcept { return false; }
-    // await_suspend返回的是一个coroutine_handle，表示会恢复这个handle，这里直接返回传入的handle，相当于不会暂停
-    auto await_suspend(std::coroutine_handle<> handle) noexcept {
-      _handle = handle;
-      return handle;
-    }
-    auto await_resume() noexcept { return _handle; }
-    std::coroutine_handle<> _handle;
-  };
-  return current{};
-}
-
 // 每个协程都有一个caller，当协程结束的时候，final_suspend返回caller
 template <class T> struct task {
   struct promise_type {
@@ -60,9 +43,6 @@ template <class T> struct task {
       bool await_ready() const noexcept { return false; }
       auto await_suspend(std::coroutine_handle<promise_type> callee) noexcept {
         auto next = callee.promise()._caller;
-        if (callee.promise().task_destroyed_) {
-          callee.destroy();
-        }
         return next;
       }
       void await_resume() noexcept {}
@@ -74,7 +54,6 @@ template <class T> struct task {
     std::coroutine_handle<> _caller = std::noop_coroutine();
     // 因为协程可能没有返回值，所以用optional来区分没有值的情况
     std::optional<T> _value = std::nullopt;
-    bool task_destroyed_ = false;
   };
 
   using handle = std::coroutine_handle<promise_type>;
@@ -84,33 +63,33 @@ template <class T> struct task {
   task(task &) = delete;
   task(task &&t) : _h(t._h) { t._h = nullptr; }
   ~task() {
-    if (_h == nullptr)
-      return;
-    if (_h.done()) {
+    if (_h) {
       _h.destroy();
     }
-    else
-      _h.promise().task_destroyed_ = true;
   }
 
-  // 把当前coroutine的handle传给await_suspend，让子协程结束的时候恢复当前协程
-  // 有可能co_await的时候，协程已经结束了，这种情况下如果co_await等待，将没有人能唤醒它
-  bool await_ready() const noexcept { return _h.done(); }
-  /* bool await_ready() const noexcept { return false; } */
+  struct Awaiter {
+    // 把当前coroutine的handle传给await_suspend，让子协程结束的时候恢复当前协程
+    // 有可能co_await的时候，协程已经结束了，这种情况下如果co_await等待，将没有人能唤醒它
+    bool await_ready() const noexcept { return _h.done(); }
+    /* bool await_ready() const noexcept { return false; } */
 
-  // 这里的callee是当前协程的handle，因为先构造了子协程的对象，然后
-  // 调用callee::operator co_await()，然后因为在caller中调用了co_await
-  // 所以这里的caller就是父协程的handle
-  auto await_suspend(std::coroutine_handle<> caller) noexcept {
-    _h.promise()._caller = caller;
-    return _h;
-    // 因为我们将initial_suspend的返回值设置成了suspend_never，所以我们不需要将控制权转移到callee中
-    // 事实上调用这个函数的时候callee已经执行完了
-  }
+    // 这里的callee是当前协程的handle，因为先构造了子协程的对象，然后
+    // 调用callee::operator co_await()，然后因为在caller中调用了co_await
+    // 所以这里的caller就是父协程的handle
+    auto await_suspend(std::coroutine_handle<> caller) noexcept {
+      _h.promise()._caller = caller;
+      return _h;
+      // 因为我们将initial_suspend的返回值设置成了suspend_never，所以我们不需要将控制权转移到callee中
+      // 事实上调用这个函数的时候callee已经执行完了
+    }
 
-  // 这个是co_await的返回值，也就是子协程的返回值，可以保证await_resume的时候子协程已经结束了，所以返回值一定是有效的
-  T await_resume() { return _h.promise()._value.value(); }
+    // 这个是co_await的返回值，也就是子协程的返回值，可以保证await_resume的时候子协程已经结束了，所以返回值一定是有效的
+    T await_resume() { return _h.promise()._value.value(); }
+    handle _h;
+  };
 
+  auto operator co_await() { return Awaiter{_h}; }
   // 还是不要定义这个函数了，因为协程很可能因为暂停了没有执行完，这样返回值是无效的
   T operator()() = delete;
   /* T operator()() { */
@@ -133,9 +112,6 @@ template <> struct task<void> {
       bool await_ready() const noexcept { return false; }
       auto await_suspend(std::coroutine_handle<promise_type> callee) noexcept {
         auto next = callee.promise()._caller;
-        if (callee.promise().task_destroyed_) {
-          callee.destroy();
-        }
         return next;
       }
       void await_resume() noexcept {}
@@ -145,7 +121,6 @@ template <> struct task<void> {
     resume_awaiter final_suspend() noexcept { return resume_awaiter{}; }
     /* void await_transform() = delete; */
     std::coroutine_handle<> _caller = std::noop_coroutine();
-    bool task_destroyed_ = false;
   };
 
   using handle = std::coroutine_handle<promise_type>;
@@ -155,31 +130,31 @@ template <> struct task<void> {
   task(task &) = delete;
   task(task &&t) : _h(t._h) { t._h = nullptr; }
   ~task() {
-    if (_h == nullptr)
-      return;
-    if (_h.done()) {
+    if (_h) {
       _h.destroy();
-    }
-    else {
-      _h.promise().task_destroyed_ = true;
+      _h = nullptr;
     }
   }
 
-  // 把当前coroutine的handle传给await_suspend，让子协程结束的时候恢复当前协程
-  // 有可能co_await的时候，协程已经结束了，这种情况下如果co_await等待，将没有人能唤醒它
-  bool await_ready() const noexcept { return _h.done(); }
-  /* bool await_ready() const noexcept { return false; } */
+  struct Awaiter {
+    // 把当前coroutine的handle传给await_suspend，让子协程结束的时候恢复当前协程
+    // 有可能co_await的时候，协程已经结束了，这种情况下如果co_await等待，将没有人能唤醒它
+    bool await_ready() const noexcept { return _h.done(); }
+    /* bool await_ready() const noexcept { return false; } */
 
-  // 这里的callee是当前协程的handle，因为先构造了子协程的对象，然后
-  // 调用callee::operator co_await()，然后因为在caller中调用了co_await
-  // 所以这里的caller就是父协程的handle
-  auto await_suspend(std::coroutine_handle<> caller) noexcept {
-    _h.promise()._caller = caller;
-    return _h;
-  }
+    // 这里的callee是当前协程的handle，因为先构造了子协程的对象，然后
+    // 调用callee::operator co_await()，然后因为在caller中调用了co_await
+    // 所以这里的caller就是父协程的handle
+    auto await_suspend(std::coroutine_handle<> caller) noexcept {
+      _h.promise()._caller = caller;
+      return _h;
+    }
 
-  // 这个是co_await的返回值，也就是子协程的返回值，可以保证await_resume的时候子协程已经结束了，所以返回值一定是有效的
-  void await_resume() {}
+    // 这个是co_await的返回值，也就是子协程的返回值，可以保证await_resume的时候子协程已经结束了，所以返回值一定是有效的
+    void await_resume() {}
+    handle _h;
+  };
+  auto operator co_await() { return Awaiter{_h}; }
 
   // 还是不要定义这个函数了，因为协程很可能因为暂停了没有执行完，这样返回值是无效的
   void operator()() = delete;
