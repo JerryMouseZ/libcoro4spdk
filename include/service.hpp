@@ -77,9 +77,9 @@ struct spdk_service {
   /* int current_core = 0; */
 
   spdk_service(int num_threads, const char *json_file, const char *bdev_name)
-      : rds(num_threads), num_threads(num_threads), alive_tasks(0) {
-    strncpy(device_name, bdev_name, 16);
-    strncpy(this->json_file, json_file, 16);
+      : num_threads(num_threads), rds(num_threads), alive_tasks(0) {
+    strncpy(device_name, bdev_name, 15);
+    strncpy(this->json_file, json_file, 15);
     // 由于app_start调用了之后就阻塞住了，因此这里不能start，而是要等协程都开始运行之后才可以
   }
 

@@ -160,7 +160,7 @@ void service_init(void *args) {
   }
 
   // round roubin
-  for (int i = 0; i < g_service->tasks.size(); ++i) {
+  for (size_t i = 0; i < g_service->tasks.size(); ++i) {
     int core = i % g_service->num_threads;
     g_service->alive_tasks++;
     spdk_thread_send_msg(g_service->rds[core].thread, service_thread_run,
