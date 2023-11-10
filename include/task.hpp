@@ -72,7 +72,7 @@ template <class T> struct task {
   struct Awaiter {
     // 把当前coroutine的handle传给await_suspend，让子协程结束的时候恢复当前协程
     // 有可能co_await的时候，协程已经结束了，这种情况下如果co_await等待，将没有人能唤醒它
-    bool await_ready() const noexcept { return _h.done(); }
+    bool await_ready() const noexcept { return false; }
     /* bool await_ready() const noexcept { return false; } */
 
     // 这里的callee是当前协程的handle，因为先构造了子协程的对象，然后
@@ -144,7 +144,7 @@ template <> struct task<void> {
   struct Awaiter {
     // 把当前coroutine的handle传给await_suspend，让子协程结束的时候恢复当前协程
     // 有可能co_await的时候，协程已经结束了，这种情况下如果co_await等待，将没有人能唤醒它
-    bool await_ready() const noexcept { return _h.done(); }
+    bool await_ready() const noexcept { return false; }
     /* bool await_ready() const noexcept { return false; } */
 
     // 这里的callee是当前协程的handle，因为先构造了子协程的对象，然后

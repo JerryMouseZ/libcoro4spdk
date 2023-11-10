@@ -62,3 +62,13 @@ TEST_CASE("subroutine wrapper", "subroutine") {
   w.wakeup();
   REQUIRE(t.get().value() == 1);
 }
+
+task<void> empty_loop() {
+  for (int i = 0; i < 100000; ++i) {
+    co_await empty();
+  }
+}
+TEST_CASE("empty loop", "subroutine") {
+  auto t = empty_loop();
+  t.start();
+}
