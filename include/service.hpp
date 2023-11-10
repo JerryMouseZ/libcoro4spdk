@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <list>
 #include <pthread.h>
 #include <ranges>
 #include <vector>
@@ -66,6 +67,7 @@ struct spdk_service {
   char device_name[16];
   char json_file[16];
   std::vector<task<int>> tasks;
+  std::list<task<void>> wrapper_tasks;
   int num_threads;
   char cpumask[8] = "0x";
   spdk_bdev_desc *desc;
