@@ -1,4 +1,5 @@
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_COMPILER clang++)
 add_library(libcoro4spdk STATIC src/service.cpp)
 OPTION(ENABLE_TEST "on for build tests and unit tests" ON)
 
@@ -16,6 +17,9 @@ target_link_options(libcoro4spdk PRIVATE ${spdk_link_options})
 target_link_libraries(libcoro4spdk PRIVATE ${spdk_link_libraries})
 target_include_directories(libcoro4spdk PRIVATE ${spdk_root}/include)
 target_include_directories(libcoro4spdk PUBLIC include)
+
+add_executable(empty_loop ./test/empty_loop.cpp)
+target_include_directories(empty_loop PUBLIC include)
 
 message(${ENABLE_TEST})
 if (ENABLE_TEST)
