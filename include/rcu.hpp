@@ -1,21 +1,21 @@
 #ifndef RCU_HPP
 #define RCU_HPP
 
-#include <atomic>
 #include "task.hpp"
+#include <atomic>
 
-namespace rcu{
+namespace rcu {
 
-    void rcu_read_lock();
-    void rcu_read_unlock();
+void rcu_read_lock();
+void rcu_read_unlock();
 
-    task<void> rcu_sync_run();
+task<void> rcu_sync_run();
 
-#define rcu_assign_pointer(p, v) \
-    do { \
-        p = v; \
-        std::atomic_thread_fence(std::memory_order_release); \
-    } while(0)
+#define rcu_assign_pointer(p, v)                         \
+  do {                                                   \
+    p = v;                                               \
+    std::atomic_thread_fence(std::memory_order_release); \
+  } while (0)
 
 // #define rcu_assign_pointer(p, v) \
 //     do { \
@@ -54,6 +54,6 @@ namespace rcu{
 //         std::atomic_thread_fence(std::memory_order_release); \
 //     } while(0)
 
-}   // namespace rcu
+}  // namespace rcu
 
 #endif  // RCU_HPP

@@ -21,7 +21,7 @@ struct wakable {
   void wakeup() { _h.resume(); }
 };
 
-task<int> async_func(wakable &w) {
+task<int> async_func(wakable& w) {
   printf("async_func begin\n");
   printf("before suspend\n");
   co_await w;
@@ -38,7 +38,9 @@ TEST_CASE("resume from subroutine", "subroutine") {
   REQUIRE(t._h.promise()._value.value() == 1);
 }
 
-task<int> empty() { co_return 2; }
+task<int> empty() {
+  co_return 2;
+}
 task<int> async_func2() {
   int ret = co_await empty();
   co_return ret;
@@ -50,7 +52,7 @@ TEST_CASE("resume from empty", "empty") {
   REQUIRE(t.get().value() == 2);
 }
 
-task<int> async_wrapper(wakable &w) {
+task<int> async_wrapper(wakable& w) {
   int ret = co_await async_func(w);
   co_return ret;
 }

@@ -10,21 +10,21 @@
 #include <coroutine>
 #include <cstdint>
 
-spdk_service *g_service = nullptr;
-spdk_thread *main_thread = nullptr;
+spdk_service* g_service = nullptr;
+spdk_thread* main_thread = nullptr;
 
-void spdk_io_complete_cb(struct spdk_bdev_io *bdev_io, bool success,
-                         void *cb_arg) {
+void spdk_io_complete_cb(struct spdk_bdev_io* bdev_io, bool success,
+                         void* cb_arg) {
   spdk_bdev_free_io(bdev_io);
   // resume coroutine
-  spdk_service::result *res = (spdk_service::result *)cb_arg;
+  spdk_service::result* res = (spdk_service::result*)cb_arg;
   res->res = success ? 0 : 1;
   res->coro.resume();
 }
 
-void spdk_retry_read(void *args) {
-  struct spdk_service::retry_context *ctx =
-      (struct spdk_service::retry_context *)args;
+void spdk_retry_read(void* args) {
+  struct spdk_service::retry_context* ctx =
+      (struct spdk_service::retry_context*)args;
   int rc = spdk_bdev_read(ctx->desc, ctx->ch, ctx->buf, ctx->offset, ctx->len,
                           spdk_io_complete_cb, ctx->res);
   if (rc == -ENOMEM) {
@@ -37,9 +37,9 @@ void spdk_retry_read(void *args) {
   }
 }
 
-void spdk_retry_write(void *args) {
-  struct spdk_service::retry_context *ctx =
-      (struct spdk_service::retry_context *)args;
+void spdk_retry_write(void* args) {
+  struct spdk_service::retry_context* ctx =
+      (struct spdk_service::retry_context*)args;
   int rc = spdk_bdev_write(ctx->desc, ctx->ch, ctx->buf, ctx->offset, ctx->len,
                            spdk_io_complete_cb, ctx->res);
   if (rc == -ENOMEM) {
@@ -52,8 +52,8 @@ void spdk_retry_write(void *args) {
   }
 }
 
-void thread_exit(void *args) {
-  spdk_service::reactor_data *rd = (spdk_service::reactor_data *)args;
+void thread_exit(void* args) {
+  spdk_service::reactor_data* rd = (spdk_service::reactor_data*)args;
   spdk_put_io_channel(rd->ch);
   spdk_thread_exit(spdk_get_thread());
 }
@@ -72,7 +72,7 @@ void service_exit() {
   spdk_app_stop(0);
 }
 
-void task_done(void *args) {
+void task_done(void* args) {
   if (--g_service->alive_tasks == 0) {
     service_exit();
   }
@@ -90,16 +90,16 @@ void task_done(void *args) {
 /*   void await_resume() {} */
 /* }; */
 
-task<void> task_run(void *args) {
-  task<int> *t = (task<int> *)
-      args; // NOTICE：我觉得这里不能固定模板类型，因为本就无法确定task的类型
-  co_await *t;
+task<void> task_run(void* args) {
+  task<int>* t = (task<int>*)
+      args;  // NOTICE：我觉得这里不能固定模板类型，因为本就无法确定task的类型
+  co_await* t;
   // 不理解为什么到这里的时候执行就到了reactor 0上
   // 创建线程的时候明明是另外一个核心上运行的
   spdk_thread_send_msg(main_thread, task_done, nullptr);
 }
 
-void service_thread_run(void *args) {
+void service_thread_run(void* args) {
   task<void> t = task_run(args);
   t.start();
   // 要保证t不能被析构
@@ -107,12 +107,14 @@ void service_thread_run(void *args) {
     g_service->wrapper_tasks.push_back(std::move(t));
 }
 
-void service_thread_run_yield(void *args) {
+void service_thread_run_yield(void* args) {
   std::coroutine_handle<> h = std::coroutine_handle<>::from_address(args);
   h.resume();
 }
 
-bool YieldAwaiter::await_ready() noexcept { return false; }
+bool YieldAwaiter::await_ready() noexcept {
+  return false;
+}
 void YieldAwaiter::await_suspend(
     std::coroutine_handle<> continuation) noexcept {
   spdk_thread_send_msg(spdk_get_thread(), service_thread_run_yield,
@@ -120,17 +122,17 @@ void YieldAwaiter::await_suspend(
 }
 void YieldAwaiter::await_resume() noexcept {}
 
-void myapp_bdev_event_cb(enum spdk_bdev_event_type type, struct spdk_bdev *bdev,
-                         void *event_ctx) {}
+void myapp_bdev_event_cb(enum spdk_bdev_event_type type, struct spdk_bdev* bdev,
+                         void* event_ctx) {}
 
-void thread_init_get_channel(void *args) {
-  spdk_service::reactor_data *rd = (spdk_service::reactor_data *)args;
+void thread_init_get_channel(void* args) {
+  spdk_service::reactor_data* rd = (spdk_service::reactor_data*)args;
   // get_io_channel绑定了当前线程，所以需要发给对应的线程去创建
   rd->ch = spdk_bdev_get_io_channel(g_service->desc);
   rd->context.ch = rd->ch;
 }
 
-void service_init(void *args) {
+void service_init(void* args) {
   DEBUG_PRINTF("openning %s\n", g_service->device_name);
   // open device
   assert(spdk_bdev_open_ext(g_service->device_name, true, myapp_bdev_event_cb,
@@ -140,7 +142,7 @@ void service_init(void *args) {
   // 难道spdk_thread_create只会创建在当前reactor上吗，不应该吧
   // set cpu
   spdk_cpuset tmpmask;
-  spdk_thread *thread;
+  spdk_thread* thread;
   uint32_t i;
   SPDK_ENV_FOREACH_CORE(i) {
     DEBUG_PRINTF("creating schedule thread at core %d\n", i);
@@ -168,8 +170,8 @@ void service_init(void *args) {
   }
 }
 
-void init_service(int thread_num, const char *json_file,
-                  const char *device_name) {
+void init_service(int thread_num, const char* json_file,
+                  const char* device_name) {
   g_service = new spdk_service(thread_num, json_file, device_name);
 }
 

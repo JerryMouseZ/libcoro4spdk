@@ -1,7 +1,9 @@
 #include "task.hpp"
 #include <assert.h>
 
-task<int> empty() { co_return 2; }
+task<int> empty() {
+  co_return 2;
+}
 task<int> empty_loop() {
   int r = 0;
   for (int i = 0; i < 100000; ++i) {
@@ -10,7 +12,7 @@ task<int> empty_loop() {
   co_return r;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   auto t = empty_loop();
   t.start();
 

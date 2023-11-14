@@ -32,18 +32,18 @@ namespace async_simple {
 namespace coro {
 
 class Mutex {
-private:
+ private:
   class ScopedLockAwaiter;
   class LockAwaiter;
 
-public:
+ public:
   /// Construct a new async mutex that is initially unlocked.
   Mutex() noexcept : _state(unlockedState()), _waiters(nullptr) {}
 
-  Mutex(const Mutex &) = delete;
-  Mutex(Mutex &&) = delete;
-  Mutex &operator=(const Mutex &) = delete;
-  Mutex &operator=(Mutex &&) = delete;
+  Mutex(const Mutex&) = delete;
+  Mutex(Mutex&&) = delete;
+  Mutex& operator=(const Mutex&) = delete;
+  Mutex& operator=(Mutex&&) = delete;
 
   ~Mutex() {
     // Check there are no waiters waiting to acquire the lock.
@@ -60,7 +60,7 @@ public:
   /// If this method returns true then the caller is responsible for ensuring
   /// that unlock() is called to release the lock.
   bool tryLock() noexcept {
-    void *oldValue = unlockedState();
+    void* oldValue = unlockedState();
     return _state.compare_exchange_strong(oldValue, nullptr,
                                           std::memory_order_acquire,
                                           std::memory_order_relaxed);
@@ -102,9 +102,9 @@ public:
   /// schedule the resumption of the next coroutine in the queue.
   void unlock() noexcept {
     assert(_state.load(std::memory_order_relaxed) != unlockedState());
-    auto *waitersHead = _waiters;
+    auto* waitersHead = _waiters;
     if (waitersHead == nullptr) {
-      void *currentState = _state.load(std::memory_order_relaxed);
+      void* currentState = _state.load(std::memory_order_relaxed);
       if (currentState == nullptr) {
         // Looks like there are no waiters waiting to acquire the lock.
         // Try to unlock it - use a compare-exchange to decide the race
@@ -122,9 +122,9 @@ public:
       currentState = _state.exchange(nullptr, std::memory_order_acquire);
       assert(currentState != unlockedState());
       assert(currentState != nullptr);
-      auto *waiter = static_cast<LockAwaiter *>(currentState);
+      auto* waiter = static_cast<LockAwaiter*>(currentState);
       do {
-        auto *temp = waiter->_next;
+        auto* temp = waiter->_next;
         waiter->_next = waitersHead;
         waitersHead = waiter;
         waiter = temp;
@@ -135,10 +135,10 @@ public:
     waitersHead->_awaitingCoroutine.resume();
   }
 
-private:
+ private:
   class LockAwaiter {
-  public:
-    explicit LockAwaiter(Mutex &mutex) noexcept : _mutex(mutex) {}
+   public:
+    explicit LockAwaiter(Mutex& mutex) noexcept : _mutex(mutex) {}
 
     bool await_ready() noexcept { return _mutex.tryLock(); }
 
@@ -152,18 +152,18 @@ private:
     // FIXME: LockAwaiter should implement coAwait to avoid to fall in
     // ViaAsyncAwaiter.
 
-  protected:
-    Mutex &_mutex;
+   protected:
+    Mutex& _mutex;
 
-  private:
+   private:
     friend Mutex;
 
     std::coroutine_handle<> _awaitingCoroutine;
-    LockAwaiter *_next;
+    LockAwaiter* _next;
   };
 
   class ScopedLockAwaiter : public LockAwaiter {
-  public:
+   public:
     using LockAwaiter::LockAwaiter;
 
     [[nodiscard]] std::unique_lock<Mutex> await_resume() noexcept {
@@ -172,7 +172,7 @@ private:
   };
 
   // Special value for _state that indicates the mutex is not locked.
-  void *unlockedState() noexcept { return this; }
+  void* unlockedState() noexcept { return this; }
 
   // Try to lock the mutex.
   //
@@ -181,13 +181,13 @@ private:
   // later once it acquires the mutex. Returns false if the lock was acquired
   // synchronously and the awaiting coroutine should continue without
   // suspending.
-  bool lockAsyncImpl(LockAwaiter *awaiter) {
-    void *oldValue = _state.load(std::memory_order_relaxed);
+  bool lockAsyncImpl(LockAwaiter* awaiter) {
+    void* oldValue = _state.load(std::memory_order_relaxed);
     while (true) {
       if (oldValue == unlockedState()) {
         // It looks like the mutex is currently unlocked.
         // Try to acquire it synchronously.
-        void *newValue = nullptr;
+        void* newValue = nullptr;
         if (_state.compare_exchange_weak(oldValue, newValue,
                                          std::memory_order_acquire,
                                          std::memory_order_relaxed)) {
@@ -197,8 +197,8 @@ private:
       } else {
         // It looks like the mutex is currently locked.
         // Try to queue this waiter to the list of waiters.
-        void *newValue = awaiter;
-        awaiter->_next = static_cast<LockAwaiter *>(oldValue);
+        void* newValue = awaiter;
+        awaiter->_next = static_cast<LockAwaiter*>(oldValue);
         if (_state.compare_exchange_weak(oldValue, newValue,
                                          std::memory_order_release,
                                          std::memory_order_relaxed)) {
@@ -215,11 +215,11 @@ private:
   // - nullptr => Locked, no newly queued waiters (ie. empty list of waiters)
   // - other   => Pointer to first LockAwaiter* in a linked-list of newly
   //              queued awaiters in LIFO order.
-  std::atomic<void *> _state;
+  std::atomic<void*> _state;
 
   // Linked-list of waiters in FIFO order.
   // Only the current lock holder is allowed to access this member.
-  LockAwaiter *_waiters;
+  LockAwaiter* _waiters;
 };
 
 inline Mutex::ScopedLockAwaiter Mutex::coScopedLock() noexcept {
@@ -230,7 +230,7 @@ inline Mutex::LockAwaiter Mutex::coLock() noexcept {
   return LockAwaiter(*this);
 }
 
-} // namespace coro
-} // namespace async_simple
+}  // namespace coro
+}  // namespace async_simple
 
 #endif

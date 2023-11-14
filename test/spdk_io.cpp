@@ -5,11 +5,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdio>
 #include <vector>
-const char *json_file = "bdev.json";
-const char *bdev_dev = "Malloc0";
+const char* json_file = "bdev.json";
+const char* bdev_dev = "Malloc0";
 task<int> simple_write_read() {
   // 不用担心，因为这个协程肯定是执行在spdk线程里的
-  char *dma_buf = (char *)spdk_dma_zmalloc(4096, 4096, nullptr);
+  char* dma_buf = (char*)spdk_dma_zmalloc(4096, 4096, nullptr);
   strcpy(dma_buf, "hello world");
   int rc = co_await g_service->write(dma_buf, 4096, 0);
   REQUIRE(rc == 0);

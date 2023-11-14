@@ -3,8 +3,8 @@
 #include <catch2/catch_all.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-const char *json_file = "bdev.json";
-const char *bdev_dev = "Malloc0";
+const char* json_file = "bdev.json";
+const char* bdev_dev = "Malloc0";
 const int n_reactor = 8;
 const int n_task = 10;
 const int n_round = 100000;
