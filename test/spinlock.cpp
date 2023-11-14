@@ -7,8 +7,8 @@
 #include <cstdio>
 #include <mutex>
 
-const char *json_file = "bdev.json";
-const char *bdev_dev = "Malloc0";
+const char* json_file = "bdev.json";
+const char* bdev_dev = "Malloc0";
 const int n_reactor = 1;
 const int n_round = 100000;
 

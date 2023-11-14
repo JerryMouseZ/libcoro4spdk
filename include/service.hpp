@@ -20,23 +20,23 @@
 #include <vector>
 
 #ifndef NDEBUG
-#define DEBUG_PRINTF(...)                                                      \
-  do {                                                                         \
-    fprintf(stderr, "[%s:%d]: ", __FILE__, __LINE__);                          \
-    fprintf(stderr, __VA_ARGS__);                                              \
+#define DEBUG_PRINTF(...)                             \
+  do {                                                \
+    fprintf(stderr, "[%s:%d]: ", __FILE__, __LINE__); \
+    fprintf(stderr, __VA_ARGS__);                     \
   } while (0);
 #else
 #define DEBUG_PRINTF(...) void(0)
-#endif // !NDEBUG
+#endif  // !NDEBUG
 
-void service_init(void *args);
+void service_init(void* args);
 
-void spdk_io_complete_cb(struct spdk_bdev_io *bdev_io, bool success,
-                         void *cb_arg);
+void spdk_io_complete_cb(struct spdk_bdev_io* bdev_io, bool success,
+                         void* cb_arg);
 
-void spdk_retry_read(void *args);
+void spdk_retry_read(void* args);
 
-void spdk_retry_write(void *args);
+void spdk_retry_write(void* args);
 
 struct spdk_service {
   struct result {
@@ -45,19 +45,19 @@ struct spdk_service {
   };
 
   struct retry_context {
-    spdk_bdev *bdev;
-    spdk_bdev_desc *desc;
-    spdk_io_channel *ch;
-    void *buf;
+    spdk_bdev* bdev;
+    spdk_bdev_desc* desc;
+    spdk_io_channel* ch;
+    void* buf;
     int len;
     size_t offset;
-    result *res;
+    result* res;
   };
 
   // cacheline aligned will be better to prevent races
   struct reactor_data {
-    spdk_thread *thread;
-    spdk_io_channel *ch;
+    spdk_thread* thread;
+    spdk_io_channel* ch;
     spdk_bdev_io_wait_entry bdev_io_wait;
     retry_context context;
     // maybe need dma buffer
@@ -70,13 +70,13 @@ struct spdk_service {
   std::list<task<void>> wrapper_tasks;
   int num_threads;
   char cpumask[8] = "0x";
-  spdk_bdev_desc *desc;
-  spdk_bdev *bdev;
+  spdk_bdev_desc* desc;
+  spdk_bdev* bdev;
   std::vector<reactor_data> rds;
   int alive_tasks;
   /* int current_core = 0; */
 
-  spdk_service(int num_threads, const char *json_file, const char *bdev_name)
+  spdk_service(int num_threads, const char* json_file, const char* bdev_name)
       : num_threads(num_threads), rds(num_threads), alive_tasks(0) {
     strncpy(device_name, bdev_name, 15);
     strncpy(this->json_file, json_file, 15);
@@ -97,7 +97,7 @@ struct spdk_service {
   };
 
   // buf must be dma buffer
-  service_awaiter read(void *buf, int len, size_t offset) {
+  service_awaiter read(void* buf, int len, size_t offset) {
     int current_core = spdk_env_get_current_core();
     service_awaiter awaiter{};
     int rc = spdk_bdev_read(desc, rds[current_core].ch, buf, offset, len,
@@ -122,7 +122,7 @@ struct spdk_service {
 
   // read/write根据channel所在的线程，会将io请求发送到对应的spdk线程上
   // 可以根据这个进行一些调度
-  service_awaiter write(void *buf, int len, size_t offset) {
+  service_awaiter write(void* buf, int len, size_t offset) {
     int current_core = spdk_env_get_current_core();
     service_awaiter awaiter{};
     int rc = spdk_bdev_write(desc, rds[current_core].ch, buf, offset, len,
@@ -147,7 +147,7 @@ struct spdk_service {
 
   // 本来不应该有这种用法的，不过既然有直接在当前的reactor上运行是不是也可以，
   // 这种不能产生运行结果，所以不进入tasks中
-  void launch_task_on_fire(task<void> &&t) { t.start(); }
+  void launch_task_on_fire(task<void>&& t) { t.start(); }
 
   void execute() {
     spdk_app_opts opts;
@@ -166,26 +166,27 @@ struct spdk_service {
     spdk_app_start(&opts, service_init, this);
   }
 
-  void run(task<int> &&t) {
+  void run(task<int>&& t) {
     tasks.emplace_back(std::move(t));
     execute();
   }
 
-  void add_task(task<int> &&t) { tasks.emplace_back(std::move(t)); }
+  void add_task(task<int>&& t) { tasks.emplace_back(std::move(t)); }
 
   void run() { execute(); }
 
-  template <typename Range> void run_all(Range &range) {
-    for (auto &element : range) {
+  template <typename Range>
+  void run_all(Range& range) {
+    for (auto& element : range) {
       tasks.emplace_back(std::move(element));
     }
     execute();
   }
 };
 
-extern spdk_service *g_service;
-void init_service(int thread_num, const char *json_file,
-                  const char *device_name);
+extern spdk_service* g_service;
+void init_service(int thread_num, const char* json_file,
+                  const char* device_name);
 void deinit_service();
 
 struct YieldAwaiter {

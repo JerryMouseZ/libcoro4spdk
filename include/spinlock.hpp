@@ -26,34 +26,32 @@ namespace async_simple {
 namespace coro {
 
 class SpinLock {
-public:
-    explicit SpinLock(std::int32_t count = 1024) noexcept
-        : _spinCount(count), _locked(false) {}
+ public:
+  explicit SpinLock(std::int32_t count = 1024) noexcept
+      : _spinCount(count), _locked(false) {}
 
-    bool tryLock() noexcept {
-        return !_locked.exchange(true, std::memory_order_acquire);
-    }
+  bool tryLock() noexcept {
+    return !_locked.exchange(true, std::memory_order_acquire);
+  }
 
-    task<int> coLock() noexcept {
-        auto counter = _spinCount;
-        while (!tryLock()) {
-            while (_locked.load(std::memory_order_relaxed)) {
-                if (counter-- <= 0) {
-                    co_await YieldAwaiter();
-                    counter = _spinCount;
-                }
-            }
+  task<int> coLock() noexcept {
+    auto counter = _spinCount;
+    while (!tryLock()) {
+      while (_locked.load(std::memory_order_relaxed)) {
+        if (counter-- <= 0) {
+          co_await YieldAwaiter();
+          counter = _spinCount;
         }
-        co_return 0;
+      }
     }
+    co_return 0;
+  }
 
-    void unlock() noexcept {
-        _locked.store(false, std::memory_order_release);
-    }
+  void unlock() noexcept { _locked.store(false, std::memory_order_release); }
 
-private:
-    std::int32_t _spinCount;
-    std::atomic<bool> _locked;
+ private:
+  std::int32_t _spinCount;
+  std::atomic<bool> _locked;
 };
 
 }  // namespace coro

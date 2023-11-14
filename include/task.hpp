@@ -27,7 +27,8 @@
 // 然后可以通过get()获取返回值，如果还没有返回值，get()会返回std::nullopt，出现错误
 
 // 每个协程都有一个caller，当协程结束的时候，final_suspend返回caller
-template <class T> struct task {
+template <class T>
+struct task {
   struct promise_type {
     std::suspend_always initial_suspend() { return {}; }
     // 协程对象的返回值应该被使用
@@ -60,9 +61,9 @@ template <class T> struct task {
   using handle = std::coroutine_handle<promise_type>;
   handle _h;
 
-  explicit task(promise_type *p) : _h(handle::from_promise(*p)) {}
-  task(task &) = delete;
-  task(task &&t) : _h(t._h) { t._h = nullptr; }
+  explicit task(promise_type* p) : _h(handle::from_promise(*p)) {}
+  task(task&) = delete;
+  task(task&& t) : _h(t._h) { t._h = nullptr; }
   ~task() {
     if (_h) {
       _h.destroy();
@@ -106,7 +107,8 @@ template <class T> struct task {
   bool done() { return _h.done(); }
 };
 
-template <> struct task<void> {
+template <>
+struct task<void> {
   struct promise_type {
     std::suspend_always initial_suspend() { return {}; }
     [[nodiscard]] task<void> get_return_object() { return task<void>(this); }
@@ -131,9 +133,9 @@ template <> struct task<void> {
   using handle = std::coroutine_handle<promise_type>;
   handle _h;
 
-  explicit task(promise_type *p) : _h(handle::from_promise(*p)) {}
-  task(task &) = delete;
-  task(task &&t) : _h(t._h) { t._h = nullptr; }
+  explicit task(promise_type* p) : _h(handle::from_promise(*p)) {}
+  task(task&) = delete;
+  task(task&& t) : _h(t._h) { t._h = nullptr; }
   ~task() {
     if (_h) {
       _h.destroy();
@@ -167,4 +169,4 @@ template <> struct task<void> {
   bool done() { return _h.done(); }
 };
 
-#endif // TASK_H
+#endif  // TASK_H
