@@ -19,8 +19,9 @@ target_link_libraries(libcoro4spdk PRIVATE ${spdk_link_libraries})
 target_include_directories(libcoro4spdk PRIVATE ${spdk_root}/include)
 target_include_directories(libcoro4spdk PUBLIC include)
 
-add_executable(empty_loop ./test/empty_loop.cpp)
-target_include_directories(empty_loop PUBLIC include)
+add_executable(locking_benchmark ./benchmarks/locking.cpp)
+target_include_directories(locking_benchmark PUBLIC include)
+target_link_libraries(locking_benchmark PRIVATE libcoro4spdk)
 
 message(${ENABLE_TEST})
 if (ENABLE_TEST)
