@@ -83,7 +83,7 @@ class SharedMutexBase {
 
   task<int> coLock() noexcept {
     // auto scoper = co_await mut_.coScopedLock();
-    mut_.coLock();
+    co_await mut_.coLock();
     // Wait until we can set the write-entered flag.
     if (write_entered()) {
       co_await gate1_.wait(mut_, [this] { return !write_entered(); });
@@ -125,7 +125,7 @@ class SharedMutexBase {
 
   task<int> coLockShared() {
     // auto scoper = co_await mut_.coScopedLock();
-    mut_.coLock();
+    co_await mut_.coLock();
     if (state_ >= max_readers) {
       co_await gate1_.wait(mut_, [this] { return state_ < max_readers; });
     }

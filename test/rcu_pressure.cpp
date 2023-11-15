@@ -30,7 +30,7 @@ task<int> reader(int idx) {
     REQUIRE(p->a < 55);
     REQUIRE(p->a == p->b);
     REQUIRE(p->b == p->c);
-    printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
+    // printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
 
     rcu::rcu_read_unlock();
   }
@@ -53,7 +53,7 @@ task<int> writer(int idx) {
 
     co_await rcu::rcu_sync_run();
 
-    printf("%d: %d\n", idx, i);
+    // printf("%d: %d\n", idx, i);
 
     free(q);
     q = nullptr;
