@@ -65,7 +65,6 @@ void thread_exit(void* args) {
 }
 
 void service_exit() {
-  spdk_bdev_close(desc);
   for (int i = 0; i < num_threads; ++i) {
     if (i == 0) {
       spdk_put_io_channel(channels[i]);
@@ -73,6 +72,7 @@ void service_exit() {
       spdk_thread_send_msg(threads[i], thread_exit, (void*)(long)i);
     }
   }
+  spdk_bdev_close(desc);
   DEBUG_PRINTF("Stopping app\n");
   spdk_app_stop(0);
 }
@@ -133,12 +133,13 @@ void scheduler_init(void* args) {
       spdk_cpuset_zero(&tmpmask);
       spdk_cpuset_set_cpu(&tmpmask, i, true);
       thread = spdk_thread_create(NULL, &tmpmask);
+      spdk_thread_send_msg(thread, thread_init_get_channel, (void*)uint64_t(i));
     } else {
       thread = spdk_get_thread();
       main_thread = thread;
+      channels[i] = spdk_bdev_get_io_channel(desc);
     }
     threads[i] = thread;
-    spdk_thread_send_msg(thread, thread_init_get_channel, (void*)uint64_t(i));
   }
 
   // round roubin
@@ -147,6 +148,9 @@ void scheduler_init(void* args) {
     alive_tasks++;
     spdk_thread_send_msg(threads[core], service_thread_run, &tasks[i]);
   }
+
+  if (tasks.size() == 0)
+    service_exit();
 }
 
 void init_service(int thread_num, const char* config_file,
