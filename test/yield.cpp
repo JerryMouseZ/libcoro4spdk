@@ -1,3 +1,4 @@
+#include "schedule.hpp"
 #include "service.hpp"
 #include "task.hpp"
 #include <catch2/catch_all.hpp>
@@ -12,17 +13,17 @@ const int n_round = 100000;
 task<int> task_int_test(int task_id) {
   for (int i = 0; i < n_round; i++) {
     /* std::cout << task_id << "-1" << std::endl; */
-    co_await YieldAwaiter();
+    co_await yield();
     /* std::cout << task_id << "-2" << std::endl; */
   }
   co_return 0;
 }
 
 TEST_CASE("yield_test", "task int") {
-  init_service(n_reactor, json_file, bdev_dev);
+  pmss::init_service(n_reactor, json_file, bdev_dev);
   for (int i = 0; i < n_reactor * n_task; i++) {
-    g_service->add_task(task_int_test(i));
+    pmss::add_task(task_int_test(i));
   }
-  g_service->run();
-  deinit_service();
+  pmss::run();
+  pmss::deinit_service();
 }

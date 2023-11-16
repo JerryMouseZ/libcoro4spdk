@@ -141,15 +141,15 @@ void print_result(timeval begin, timeval end) {
 
 void run_rcu() {
   for (int i = 0; i < num_writers; ++i)
-    g_service->add_task(writer(i, iterations));
+    pmss::add_task(writer(i, iterations));
   for (int i = 0; i < num_readers; ++i)
-    g_service->add_task(reader(i, iterations));
-  g_service->run();
+    pmss::add_task(reader(i, iterations));
+  pmss::run();
 }
 
 int main(int argc, char* argv[]) {
   args_parse(argc, argv);
-  init_service(16, "bdev.json", "Malloc0");
+  pmss::init_service(16, "bdev.json", "Malloc0");
 
   timeval begin;
   async_simple::coro::Mutex mutex;
@@ -164,29 +164,29 @@ int main(int argc, char* argv[]) {
 
   for (int i = 0; i < num_readers; ++i) {
     if (type == Mutex)
-      g_service->add_task(reader(i, iterations, mutex));
+      pmss::add_task(reader(i, iterations, mutex));
     else if (type == RwLock)
-      g_service->add_task(reader(i, iterations, rwlock));
+      pmss::add_task(reader(i, iterations, rwlock));
     else
-      g_service->add_task(reader(i, iterations, spinlock));
+      pmss::add_task(reader(i, iterations, spinlock));
   }
 
   for (int i = 0; i < num_writers; ++i) {
     if (type == Mutex)
-      g_service->add_task(writer(i, iterations, mutex));
+      pmss::add_task(writer(i, iterations, mutex));
     else if (type == RwLock)
-      g_service->add_task(writer(i, iterations, rwlock));
+      pmss::add_task(writer(i, iterations, rwlock));
     else
-      g_service->add_task(writer(i, iterations, spinlock));
+      pmss::add_task(writer(i, iterations, spinlock));
   }
 
-  g_service->run();
+  pmss::run();
 
 done:
   timeval end;
   gettimeofday(&end, nullptr);
   print_result(begin, end);
-  deinit_service();
+  pmss::deinit_service();
 
   return 0;
 }

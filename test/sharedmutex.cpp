@@ -26,13 +26,13 @@ task<int> writer() {
 }
 
 TEST_CASE("read/write lock test", "simple test") {
-  init_service(2, json_file, bdev_dev);
-  g_service->add_task(reader());
-  g_service->add_task(reader());
-  g_service->add_task(writer());
-  g_service->add_task(writer());
-  g_service->add_task(reader());
-  g_service->add_task(reader());
-  g_service->run();
-  deinit_service();
+  pmss::init_service(2, json_file, bdev_dev);
+  pmss::add_task(reader());
+  pmss::add_task(reader());
+  pmss::add_task(writer());
+  pmss::add_task(writer());
+  pmss::add_task(reader());
+  pmss::add_task(reader());
+  pmss::run();
+  pmss::deinit_service();
 }
