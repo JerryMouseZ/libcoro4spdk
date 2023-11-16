@@ -1,7 +1,6 @@
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_COMPILER clang++)
-add_library(libcoro4spdk STATIC src/rcu.cpp)
-add_library(libcoro4spdk STATIC src/service.cpp)
+add_library(libcoro4spdk STATIC src/rcu.cpp src/service.cpp src/schedule.cpp)
 OPTION(ENABLE_TEST "on for build tests and unit tests" ON)
 
 set(spdk_link_options -Wl,-z,relro,-z,now -Wl,-z,noexecstack -fuse-ld=bfd)

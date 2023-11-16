@@ -64,14 +64,14 @@ task<int> writer(int idx) {
 }
 
 TEST_CASE("rcu_pressure_test") {
-  init_service(8, json_file, bdev_dev);
+  pmss::init_service(8, json_file, bdev_dev);
   for (int i = 0; i < 50; i++) {
-    g_service->add_task(reader(i));
+    pmss::add_task(reader(i));
   }
   for (int i = 50; i < 55; i++) {
-    g_service->add_task(writer(i));
+    pmss::add_task(writer(i));
   }
-  g_service->run();
+  pmss::run();
   REQUIRE(gp != nullptr);
-  deinit_service();
+  pmss::deinit_service();
 }

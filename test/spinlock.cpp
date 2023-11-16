@@ -25,11 +25,11 @@ task<int> spinlock_test() {
 }
 
 TEST_CASE("spinlock", "simple_lock") {
-  init_service(n_reactor, json_file, bdev_dev);
+  pmss::init_service(n_reactor, json_file, bdev_dev);
   for (int i = 0; i < n_reactor; i++) {
-    g_service->add_task(spinlock_test());
+    pmss::add_task(spinlock_test());
   }
-  g_service->run();
+  pmss::run();
   REQUIRE(i == n_reactor * n_round);
-  deinit_service();
+  pmss::deinit_service();
 }

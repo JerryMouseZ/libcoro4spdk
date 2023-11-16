@@ -39,7 +39,7 @@ class SpinLock {
     while (!tryLock()) {
       while (_locked.load(std::memory_order_relaxed)) {
         if (counter-- <= 0) {
-          co_await YieldAwaiter();
+          co_await yield();
           counter = _spinCount;
         }
       }

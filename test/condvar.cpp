@@ -30,11 +30,11 @@ task<int> consumer_1() {
 }
 
 TEST_CASE("condvar test 1", "subtest 1") {
-  init_service(2, json_file, bdev_dev);
-  g_service->add_task(producer_1());
-  g_service->add_task(consumer_1());
-  g_service->run();
-  deinit_service();
+  pmss::init_service(2, json_file, bdev_dev);
+  pmss::add_task(producer_1());
+  pmss::add_task(consumer_1());
+  pmss::run();
+  pmss::deinit_service();
 }
 
 async_simple::coro::Notifier notifier;  // Notifier = ConditionVariable<void>
@@ -53,9 +53,9 @@ task<int> consumer_2() {
 }
 
 TEST_CASE("condvar test 2", "subtest 2") {
-  init_service(2, json_file, bdev_dev);
-  g_service->add_task(producer_2());
-  g_service->add_task(consumer_2());
-  g_service->run();
-  deinit_service();
+  pmss::init_service(2, json_file, bdev_dev);
+  pmss::add_task(producer_2());
+  pmss::add_task(consumer_2());
+  pmss::run();
+  pmss::deinit_service();
 }

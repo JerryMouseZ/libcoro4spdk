@@ -49,14 +49,14 @@ task<int> writer(int i) {
 }
 
 TEST_CASE("rcu_test") {
-  init_service(3, json_file, bdev_dev);
-  g_service->add_task(reader(1));
-  g_service->add_task(writer(2));
-  g_service->add_task(reader(3));
-  g_service->run();
+  pmss::init_service(3, json_file, bdev_dev);
+  pmss::add_task(reader(1));
+  pmss::add_task(writer(2));
+  pmss::add_task(reader(3));
+  pmss::run();
   REQUIRE(gp != NULL);
   REQUIRE(gp->a == 2);
   REQUIRE(gp->b == 2);
   REQUIRE(gp->c == 2);
-  deinit_service();
+  pmss::deinit_service();
 }
