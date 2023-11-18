@@ -1,28 +1,40 @@
 #include "rcu.hpp"
 #include "conditionvariable.hpp"
-#include "spinlock.hpp"
+// #include "spinlock.hpp"
+#include "mutex.hpp"
 
 namespace rcu {
 
-std::atomic<int> _cnt(0);
-async_simple::coro::SpinLock _spinlock(128);
-async_simple::coro::ConditionVariable<async_simple::coro::SpinLock> _cv;
+std::atomic<int> cnt[2];  // reader count
+std::atomic<int> mark(0);
+
+thread_local int write_pointer = 0;
+thread_local int read_pointer = 0;
+
+async_simple::coro::Notifier _cv[2];
 
 void rcu_read_lock() {
-  _cnt.fetch_add(1, std::memory_order_acquire);
+  read_pointer = mark.load(std::memory_order_acquire);
+  cnt[read_pointer].fetch_add(1, std::memory_order_acquire);
 }
 
 void rcu_read_unlock() {
-  if (_cnt.fetch_sub(1, std::memory_order_acquire) == 1) {
-    _cv.notify();
+  if (cnt[read_pointer].fetch_sub(1, std::memory_order_acquire) == 1) {
+    _cv[read_pointer].notify();
   }
 }
 
+void rcu_assign_pointer(void* p, void* v) {
+  *(uint64_t*)p = *(uint64_t*)v;
+  std::atomic_thread_fence(std::memory_order_release);
+  write_pointer = mark.fetch_xor(1, std::memory_order_acquire);
+}
+
 task<void> rcu_sync_run() {
-  co_await _spinlock.coLock();
-  co_await _cv.wait(_spinlock,
-                    [&] { return _cnt.load(std::memory_order_acquire) == 0; });
-  _spinlock.unlock();
+  _cv[write_pointer].reset();
+  if (cnt[write_pointer].load(std::memory_order_acquire) != 0) {
+    co_await _cv[write_pointer].wait();
+  }
 }
 
 }  // namespace rcu
