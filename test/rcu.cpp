@@ -1,7 +1,6 @@
 #include "rcu.hpp"
 #include "service.hpp"
 #include "spdk/env.h"
-#include "spinlock.hpp"
 #include "task.hpp"
 #include <atomic>
 #include <catch2/catch_all.hpp>
@@ -32,8 +31,6 @@ task<int> reader(int i) {
   co_return 0;
 }
 
-async_simple::coro::SpinLock spinlock;
-
 task<int> writer(int i) {
   Foo* p = new Foo();
   p->a = i;
@@ -41,10 +38,12 @@ task<int> writer(int i) {
   p->c = i;
 
   Foo* q = gp;
-  rcu_assign_pointer(gp, p);
+  rcu::rcu_assign_pointer(&gp, &p);
+
   co_await rcu::rcu_sync_run();
+
   free(q);
-  q = nullptr;
+  
   co_return 0;
 }
 

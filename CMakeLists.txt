@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.22)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_COMPILER clang++)
-add_compile_options(-O3 -Werror)
+# add_compile_options(-O3 -Werror)
 add_library(libcoro4spdk STATIC src/rcu.cpp src/service.cpp src/schedule.cpp)
 OPTION(ENABLE_TEST "on for build tests and unit tests" ON)
 OPTION(ENABLE_BENCHMARK "on for benchmarks" ON)
