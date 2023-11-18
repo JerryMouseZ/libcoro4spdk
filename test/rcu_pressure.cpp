@@ -4,9 +4,9 @@
 #include "mutex.hpp"
 #include "task.hpp"
 #include <atomic>
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
+#include <cassert>
 #include <cstdio>
+#include <cstdlib>
 
 const char* json_file = "bdev.json";
 const char* bdev_dev = "Malloc0";
@@ -19,9 +19,9 @@ struct Foo {
 
 Foo* gp = new Foo();
 
-int n_round = 100000;
-int n_reader = 1000;
-int n_writer = 1;
+int n_round = 0;
+int n_reader = 0;
+int n_writer = 0;
 
 
 task<int> reader(int idx) {
@@ -29,10 +29,10 @@ task<int> reader(int idx) {
     rcu::rcu_read_lock();
 
     Foo* p = gp;
-    REQUIRE(p->a >= 0);
-    REQUIRE(p->a < 55);
-    REQUIRE(p->a == p->b);
-    REQUIRE(p->b == p->c);
+    assert(p->a == 0 || p->a >= n_reader);
+    assert(p->a < n_reader+n_writer);
+    assert(p->a == p->b);
+    assert(p->b == p->c);
     // printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
 
     rcu::rcu_read_unlock();
@@ -65,7 +65,15 @@ task<int> writer(int idx) {
   co_return 0;
 }
 
-TEST_CASE("rcu_pressure_test") {
+// TEST_CASE("rcu_pressure_test") {
+int main(int argc, char* argv[]) {
+  assert(argc == 4);
+  n_round = atoi(argv[1]);
+  n_reader = atoi(argv[2]);
+  n_writer = atoi(argv[3]);
+
+  printf("iter: %d, reader: %d, writer: %d\n", n_round, n_reader, n_writer);
+
   pmss::init_service(16, json_file, bdev_dev);
   for (int i = 0; i < n_reader; i++) {
     pmss::add_task(reader(i));
@@ -73,11 +81,14 @@ TEST_CASE("rcu_pressure_test") {
   for (int i = n_reader; i < n_reader+n_writer; i++) {
     pmss::add_task(writer(i));
   }
+
   pmss::run();
-  REQUIRE(gp != nullptr);
-  REQUIRE(gp->a >= 0);
-  REQUIRE(gp->a < 55);
-  REQUIRE(gp->a == gp->b);
-  REQUIRE(gp->b == gp->c);
+
+  assert(gp != nullptr);
+  assert(gp->a == 0 || gp->a >= n_reader);
+  assert(gp->a < n_reader+n_writer);
+  assert(gp->a == gp->b);
+  assert(gp->b == gp->c);
+
   pmss::deinit_service();
 }
