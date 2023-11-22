@@ -33,12 +33,6 @@ void rcu_read_unlock() {
   versions[current_core].store(DONE, std::memory_order_release);
 }
 
-/* template <typename T> */
-void rcu_assign_pointer(void*& p, void* v) {
-  p = v;
-  writer_version = sequencer.load(std::memory_order_acquire);
-}
-
 void update_oldest() {
   for (int i = 0; i < num_threads; ++i) {
     // 顺序不重要，大不了多yield一次

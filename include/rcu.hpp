@@ -7,10 +7,16 @@
 namespace pmss {
 namespace rcu {
 
+extern std::atomic<unsigned long> sequencer;
+extern std::atomic<unsigned long long> writer_version;
 void rcu_read_lock();
 void rcu_read_unlock();
 
-void rcu_assign_pointer(void*& p, void* v);
+template <typename T>
+static inline void rcu_assign_pointer(T*& p, T* v) {
+  p = v;
+  writer_version = sequencer.load(std::memory_order_acquire);
+}
 
 task<void> rcu_sync_run();
 

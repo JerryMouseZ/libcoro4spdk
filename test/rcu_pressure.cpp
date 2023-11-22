@@ -17,7 +17,7 @@ struct Foo {
   int c = 0;
 };
 
-void* gp = new Foo();
+Foo* gp = new Foo();
 
 int n_round = 100000;
 int n_reader = 50;
@@ -51,7 +51,7 @@ task<int> writer(int idx) {
     co_await mutex.coLock();
 
     Foo* q = (Foo*)gp;
-    pmss::rcu::rcu_assign_pointer(gp, (void*)p);
+    pmss::rcu::rcu_assign_pointer(gp, p);
 
     co_await pmss::rcu::rcu_sync_run();
 
