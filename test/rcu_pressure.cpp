@@ -7,6 +7,8 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <catch2/catch_all.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 const char* json_file = "bdev.json";
 const char* bdev_dev = "Malloc0";
@@ -19,9 +21,9 @@ struct Foo {
 
 Foo* gp = new Foo();
 
-int n_round = 0;
-int n_reader = 0;
-int n_writer = 0;
+int n_round = 100000;
+int n_reader = 1000;
+int n_writer = 100;
 
 
 task<int> reader(int idx) {
@@ -29,10 +31,18 @@ task<int> reader(int idx) {
     rcu::rcu_read_lock();
 
     Foo* p = gp;
+
+    // assert(p->a == 0 || p->a >= n_reader);
+    // assert(p->a < n_reader+n_writer);
+    // assert(p->a == p->b);
+    // assert(p->b == p->c);
+
+    REQUIRE(p != nullptr);
     assert(p->a == 0 || p->a >= n_reader);
-    assert(p->a < n_reader+n_writer);
-    assert(p->a == p->b);
-    assert(p->b == p->c);
+    REQUIRE(p->a < n_reader+n_writer);
+    REQUIRE(p->a == p->b);
+    REQUIRE(p->b == p->c);
+
     // printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
 
     rcu::rcu_read_unlock();
@@ -58,19 +68,19 @@ task<int> writer(int idx) {
 
     // printf("%d: %d\n", idx, i);
 
-    free(q);
+    delete q;
 
     mutex.unlock();
   }
   co_return 0;
 }
 
-// TEST_CASE("rcu_pressure_test") {
-int main(int argc, char* argv[]) {
-  assert(argc == 4);
-  n_round = atoi(argv[1]);
-  n_reader = atoi(argv[2]);
-  n_writer = atoi(argv[3]);
+TEST_CASE("rcu_pressure_test") {
+// int main(int argc, char* argv[]) {
+//   assert(argc == 4);
+//   n_round = atoi(argv[1]);
+//   n_reader = atoi(argv[2]);
+//   n_writer = atoi(argv[3]);
 
   printf("iter: %d, reader: %d, writer: %d\n", n_round, n_reader, n_writer);
 
@@ -84,11 +94,17 @@ int main(int argc, char* argv[]) {
 
   pmss::run();
 
-  assert(gp != nullptr);
+  // assert(gp != nullptr);
+  // assert(gp->a == 0 || gp->a >= n_reader);
+  // assert(gp->a < n_reader+n_writer);
+  // assert(gp->a == gp->b);
+  // assert(gp->b == gp->c);
+
+  REQUIRE(gp != nullptr);
   assert(gp->a == 0 || gp->a >= n_reader);
-  assert(gp->a < n_reader+n_writer);
-  assert(gp->a == gp->b);
-  assert(gp->b == gp->c);
+  REQUIRE(gp->a < n_reader+n_writer);
+  REQUIRE(gp->a == gp->b);
+  REQUIRE(gp->b == gp->c);
 
   pmss::deinit_service();
 }

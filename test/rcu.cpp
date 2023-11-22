@@ -42,7 +42,7 @@ task<int> writer(int i) {
 
   co_await rcu::rcu_sync_run();
 
-  free(q);
+  delete q;
   
   co_return 0;
 }
