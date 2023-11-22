@@ -1,42 +1,58 @@
 #include "rcu.hpp"
+#include <algorithm>
+#include <atomic>
+#include <climits>
+#include "schedule.hpp"
 #include "conditionvariable.hpp"
 // #include "spinlock.hpp"
 #include "mutex.hpp"
 
+namespace pmss {
 namespace rcu {
 
-std::atomic<int> cnt[2];  // reader count
-std::atomic<int> mark(0);
+std::atomic<unsigned long> versions[256];
+std::atomic<unsigned long> sequencer = 0;
+const static unsigned long DONE = LONG_MAX;
+std::atomic<unsigned long long> writer_version;
+unsigned long oldest_version = 0;
 
-thread_local int write_pointer = 0;
-thread_local int read_pointer = 0;
+void rcu_init() {
+  std::fill(versions, versions + 256, LONG_LONG_MAX);
+}
 
-async_simple::coro::Notifier _cv[2];
-
+// does it need memory barrier for reader?
 void rcu_read_lock() {
-  read_pointer = mark.load(std::memory_order_acquire);
-  if (cnt[read_pointer].fetch_add(1, std::memory_order_acquire) == 0) {
-    _cv[read_pointer].reset();
-  }
+  int current_core = spdk_env_get_current_core();
+  versions[current_core].store(
+      sequencer.fetch_add(1, std::memory_order_acquire),
+      std::memory_order_release);
 }
 
 void rcu_read_unlock() {
-  if (cnt[read_pointer].fetch_sub(1, std::memory_order_acquire) == 1) {
-    _cv[read_pointer].notify();
+  int current_core = spdk_env_get_current_core();
+  versions[current_core].store(DONE, std::memory_order_release);
+}
+
+/* template <typename T> */
+void rcu_assign_pointer(void*& p, void* v) {
+  p = v;
+  writer_version = sequencer.load(std::memory_order_acquire);
+}
+
+void update_oldest() {
+  for (int i = 0; i < num_threads; ++i) {
+    // 顺序不重要，大不了多yield一次
+    oldest_version =
+        std::min(versions[i].load(std::memory_order_relaxed), oldest_version);
   }
 }
 
-void rcu_assign_pointer(void* p, void* v) {
-  *(uint64_t*)p = *(uint64_t*)v;
-  std::atomic_thread_fence(std::memory_order_release);
-  write_pointer = mark.fetch_xor(1, std::memory_order_acquire);
-}
-
 task<void> rcu_sync_run() {
-  _cv[write_pointer].reset();
-  if (cnt[write_pointer].load(std::memory_order_acquire) != 0) {
-    co_await _cv[write_pointer].wait();
+  while (writer_version >= oldest_version) {
+    co_await yield();
+    update_oldest();
   }
 }
 
 }  // namespace rcu
+}  // namespace pmss

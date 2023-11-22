@@ -45,9 +45,9 @@ task<int> reader(int index, int loop, async_simple::coro::SharedMutex& lock) {
 task<int> reader(int index, int loop) {
   int res = 0;
   for (int i = 0; i < loop; ++i) {
-    rcu::rcu_read_lock();
+    pmss::rcu::rcu_read_lock();
     res += val;
-    rcu::rcu_read_unlock();
+    pmss::rcu::rcu_read_unlock();
   }
   co_return res;
 }
@@ -81,7 +81,7 @@ task<int> writer(int index, int loop) {
     int oldval = i;
     oldval += 1;
     val = oldval;
-    co_await rcu::rcu_sync_run();
+    co_await pmss::rcu::rcu_sync_run();
     rcu_spinlock.unlock();
   }
   co_return 0;
