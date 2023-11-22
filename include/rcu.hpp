@@ -8,7 +8,7 @@ namespace pmss {
 namespace rcu {
 
 extern std::atomic<unsigned long> sequencer;
-extern std::atomic<unsigned long long> writer_version;
+extern unsigned long writer_version;
 void rcu_read_lock();
 void rcu_read_unlock();
 

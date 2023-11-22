@@ -42,8 +42,7 @@ task<int> writer(int i) {
 
   co_await pmss::rcu::rcu_sync_run();
 
-  free(q);
-
+  delete q;
   co_return 0;
 }
 
