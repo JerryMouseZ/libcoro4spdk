@@ -17,7 +17,7 @@ struct Foo {
   int c = 0;
 };
 
-Foo* gp = new Foo();
+void* gp = new Foo();
 
 int n_round = 100000;
 int n_reader = 50;
@@ -25,16 +25,16 @@ int n_writer = 4;
 
 task<int> reader(int idx) {
   for (int i = 0; i < n_round; i++) {
-    rcu::rcu_read_lock();
+    pmss::rcu::rcu_read_lock();
 
-    Foo* p = gp;
+    Foo* p = (Foo*)gp;
     REQUIRE(p->a >= 0);
     REQUIRE(p->a < 55);
     REQUIRE(p->a == p->b);
     REQUIRE(p->b == p->c);
     // printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
 
-    rcu::rcu_read_unlock();
+    pmss::rcu::rcu_read_unlock();
   }
   co_return 0;
 }
@@ -50,10 +50,10 @@ task<int> writer(int idx) {
 
     co_await mutex.coLock();
 
-    Foo* q = gp;
-    rcu::rcu_assign_pointer(&gp, &p);
+    Foo* q = (Foo*)gp;
+    pmss::rcu::rcu_assign_pointer(gp, (void*)p);
 
-    co_await rcu::rcu_sync_run();
+    co_await pmss::rcu::rcu_sync_run();
 
     // printf("%d: %d\n", idx, i);
 
