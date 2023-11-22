@@ -20,9 +20,8 @@ struct Foo {
 Foo* gp = new Foo();
 
 int n_round = 100000;
-int n_reader = 1000;
-int n_writer = 1;
-
+int n_reader = 50;
+int n_writer = 4;
 
 task<int> reader(int idx) {
   for (int i = 0; i < n_round; i++) {
@@ -58,8 +57,7 @@ task<int> writer(int idx) {
 
     // printf("%d: %d\n", idx, i);
 
-    free(q);
-
+    delete q;
     mutex.unlock();
   }
   co_return 0;
@@ -70,7 +68,7 @@ TEST_CASE("rcu_pressure_test") {
   for (int i = 0; i < n_reader; i++) {
     pmss::add_task(reader(i));
   }
-  for (int i = n_reader; i < n_reader+n_writer; i++) {
+  for (int i = n_reader; i < n_reader + n_writer; i++) {
     pmss::add_task(writer(i));
   }
   pmss::run();

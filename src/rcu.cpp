@@ -15,7 +15,9 @@ async_simple::coro::Notifier _cv[2];
 
 void rcu_read_lock() {
   read_pointer = mark.load(std::memory_order_acquire);
-  cnt[read_pointer].fetch_add(1, std::memory_order_acquire);
+  if (cnt[read_pointer].fetch_add(1, std::memory_order_acquire) == 0) {
+    _cv[read_pointer].reset();
+  }
 }
 
 void rcu_read_unlock() {
