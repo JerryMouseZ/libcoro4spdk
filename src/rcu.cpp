@@ -13,7 +13,7 @@ namespace rcu {
 std::atomic<unsigned long> versions[256];
 std::atomic<unsigned long> sequencer = 0;
 const static unsigned long DONE = LONG_MAX;
-std::atomic<unsigned long long> writer_version;
+unsigned long writer_version;
 unsigned long oldest_version = 0;
 
 void rcu_init() {
@@ -34,10 +34,10 @@ void rcu_read_unlock() {
 }
 
 void update_oldest() {
+  oldest_version = versions[0];
   for (int i = 0; i < num_threads; ++i) {
-    // 顺序不重要，大不了多yield一次
     oldest_version =
-        std::min(versions[i].load(std::memory_order_relaxed), oldest_version);
+        std::min(versions[i].load(std::memory_order_acquire), oldest_version);
   }
 }
 
