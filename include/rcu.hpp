@@ -17,7 +17,7 @@ static inline void rcu_assign_pointer(T*& p, T* v) {
   /* std::atomic_thread_fence(std::memory_order_release); */
   p = v;
   std::atomic_thread_fence(std::memory_order_release);
-  writer_version = sequencer.load(std::memory_order_acquire);
+  // writer_version = sequencer.load(std::memory_order_acquire);
 }
 
 task<void> rcu_sync_run();
