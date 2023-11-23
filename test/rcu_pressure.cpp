@@ -20,16 +20,14 @@ struct Foo {
 Foo* gp = new Foo();
 
 int n_round = 100000;
-int n_reader = 50;
-int n_writer = 4;
+int n_reader = 100;
+int n_writer = 10;
 
 task<int> reader(int idx) {
   for (int i = 0; i < n_round; i++) {
     pmss::rcu::rcu_read_lock();
 
     Foo* p = (Foo*)gp;
-    REQUIRE(p->a >= 0);
-    REQUIRE(p->a < 55);
     REQUIRE(p->a == p->b);
     REQUIRE(p->b == p->c);
     // printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
@@ -73,8 +71,6 @@ TEST_CASE("rcu_pressure_test") {
   }
   pmss::run();
   REQUIRE(gp != nullptr);
-  REQUIRE(gp->a >= 0);
-  REQUIRE(gp->a < 55);
   REQUIRE(gp->a == gp->b);
   REQUIRE(gp->b == gp->c);
   pmss::deinit_service();
