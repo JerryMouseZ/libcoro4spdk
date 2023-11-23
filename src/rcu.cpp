@@ -34,7 +34,7 @@ void rcu_read_unlock() {
 }
 
 void update_oldest() {
-  oldest_version = versions[0];
+  oldest_version = DONE;
   for (int i = 0; i < num_threads; ++i) {
     oldest_version =
         std::min(versions[i].load(std::memory_order_acquire), oldest_version);
@@ -42,6 +42,8 @@ void update_oldest() {
 }
 
 task<void> rcu_sync_run() {
+  writer_version = sequencer.load(std::memory_order_acquire);
+  update_oldest();
   while (writer_version >= oldest_version) {
     co_await yield();
     update_oldest();
