@@ -1,5 +1,6 @@
 #include "schedule.hpp"
 #include <cstdint>
+#include "rcu.hpp"
 
 namespace pmss {
 
@@ -155,6 +156,7 @@ void scheduler_init(void* args) {
 
 void init_service(int thread_num, const char* config_file,
                   const char* bdev_name) {
+  rcu::rcu_init();
   num_threads = thread_num;
   alive_tasks = 0;
   strncpy(device_name, bdev_name, 15);

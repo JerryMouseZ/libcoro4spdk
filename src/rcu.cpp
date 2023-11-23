@@ -1,40 +1,73 @@
 #include "rcu.hpp"
+#include <algorithm>
+#include <atomic>
+#include <climits>
+#include "schedule.hpp"
 #include "conditionvariable.hpp"
 // #include "spinlock.hpp"
 #include "mutex.hpp"
 
+namespace pmss {
 namespace rcu {
 
-std::atomic<int> cnt[2];  // reader count
-std::atomic<int> mark(0);
+std::atomic<unsigned long> versions[256];
+std::atomic<unsigned long> sequencer = 0;
+const static unsigned long DONE = LONG_LONG_MAX;
+unsigned long writer_version;
+unsigned long oldest_version = 0;
 
-thread_local int write_pointer = 0;
-thread_local int read_pointer = 0;
+void rcu_init() {
+  std::fill(versions, versions + 256, LONG_LONG_MAX);
+}
 
-async_simple::coro::Notifier _cv[2];
-
+// does it need memory barrier for reader?
 void rcu_read_lock() {
-  read_pointer = mark.load(std::memory_order_acquire);
-  cnt[read_pointer].fetch_add(1, std::memory_order_acquire);
+  int current_core = spdk_env_get_current_core();
+  versions[current_core].store(
+      sequencer.fetch_add(1, std::memory_order_acquire),
+      std::memory_order_release);
 }
 
 void rcu_read_unlock() {
-  if (cnt[read_pointer].fetch_sub(1, std::memory_order_acquire) == 1) {
-    _cv[read_pointer].notify();
-  }
+  int current_core = spdk_env_get_current_core();
+  versions[current_core].store(DONE, std::memory_order_release);
 }
 
-void rcu_assign_pointer(void* p, void* v) {
-  *(uint64_t*)p = *(uint64_t*)v;
-  std::atomic_thread_fence(std::memory_order_release);
-  write_pointer = mark.fetch_xor(1, std::memory_order_acquire);
+void update_oldest() {
+  oldest_version = DONE;
+  for (int i = 0; i < num_threads; ++i) {
+    oldest_version =
+        std::min(versions[i].load(std::memory_order_acquire), oldest_version);
+  }
 }
 
 task<void> rcu_sync_run() {
-  _cv[write_pointer].reset();
-  if (cnt[write_pointer].load(std::memory_order_acquire) != 0) {
-    co_await _cv[write_pointer].wait();
+  writer_version = sequencer.load(std::memory_order_acquire);
+  update_oldest();
+  while (writer_version >= oldest_version) {
+    co_await yield();
+    update_oldest();
   }
 }
 
+/* implementation below may be faster than above, because of less traverses.
+But codes below not fully tested, if used in future, need more tests. */
+
+// bool can_pass() {
+//   for (int i=0; i<num_threads; i++) {
+//     if (writer_version >= versions[i].load(std::memory_order_acquire)) {
+//       return false;
+//     }
+//   }
+//   return true;
+// }
+
+// task<void> rcu_sync_run() {
+//   writer_version = sequencer.load(std::memory_order_acquire);
+//   while (!can_pass()) {
+//     co_await yield();
+//   }
+// }
+
 }  // namespace rcu
+}  // namespace pmss

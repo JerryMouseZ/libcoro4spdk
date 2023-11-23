@@ -4,37 +4,49 @@
 #include "mutex.hpp"
 #include "task.hpp"
 #include <atomic>
-#include <cassert>
-#include <cstdio>
-#include <cstdlib>
 #include <catch2/catch_all.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstdio>
+#include <unistd.h>
+
+/* A improved version of rcu_pressure.cpp*/
 
 const char* json_file = "bdev.json";
 const char* bdev_dev = "Malloc0";
 
 struct Foo {
-  int a = 0;
-  int b = 0;
-  int c = 0;
+  int a;
+  int b;
+  int c;
+  Foo(int v) {
+    a = v;
+    b = v;
+    c = v;
+  }
 };
 
-Foo* gp = new Foo();
-
 int n_round = 100000;
-int n_reader = 50;
-int n_writer = 4;
+int n_reader = 100;
+int n_writer = 10;
+
+Foo* gp = new Foo(n_reader-1);
 
 task<int> reader(int idx) {
   for (int i = 0; i < n_round; i++) {
     pmss::rcu::rcu_read_lock();
+
     Foo* p = (Foo*)gp;
-    REQUIRE(p->a >= 0);
-    REQUIRE(p->a < 55);
+
+    REQUIRE(gp != nullptr);
+    REQUIRE(p != nullptr);
+    REQUIRE(p->a >= n_reader-1);
+    REQUIRE(p->a < n_reader+n_writer);
+    // REQUIRE(p->b >= n_reader-1);
+    // REQUIRE(p->b < n_reader+n_writer);
+    // REQUIRE(p->c >= n_reader-1);
+    // REQUIRE(p->c < n_reader+n_writer);
     REQUIRE(p->a == p->b);
     REQUIRE(p->b == p->c);
-
-    // printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
 
     pmss::rcu::rcu_read_unlock();
   }
@@ -45,10 +57,7 @@ async_simple::coro::Mutex mutex;
 
 task<int> writer(int idx) {
   for (int i = 0; i < n_round; i++) {
-    Foo* p = new Foo();
-    p->a = idx;
-    p->b = idx;
-    p->c = idx;
+    Foo* p = new Foo(idx);
 
     co_await mutex.coLock();
 
@@ -57,24 +66,14 @@ task<int> writer(int idx) {
 
     co_await pmss::rcu::rcu_sync_run();
 
-    // printf("%d: %d\n", idx, i);
-
     delete q;
-
     mutex.unlock();
   }
   co_return 0;
 }
 
 TEST_CASE("rcu_pressure_test") {
-// int main(int argc, char* argv[]) {
-//   assert(argc == 4);
-//   n_round = atoi(argv[1]);
-//   n_reader = atoi(argv[2]);
-//   n_writer = atoi(argv[3]);
-
   printf("iter: %d, reader: %d, writer: %d\n", n_round, n_reader, n_writer);
-
   pmss::init_service(16, json_file, bdev_dev);
   for (int i = 0; i < n_reader; i++) {
     pmss::add_task(reader(i));
@@ -82,20 +81,11 @@ TEST_CASE("rcu_pressure_test") {
   for (int i = n_reader; i < n_reader + n_writer; i++) {
     pmss::add_task(writer(i));
   }
-
   pmss::run();
-
-  // assert(gp != nullptr);
-  // assert(gp->a == 0 || gp->a >= n_reader);
-  // assert(gp->a < n_reader+n_writer);
-  // assert(gp->a == gp->b);
-  // assert(gp->b == gp->c);
-
   REQUIRE(gp != nullptr);
-  assert(gp->a == 0 || gp->a >= n_reader);
+  REQUIRE(gp->a >= n_reader-1);
   REQUIRE(gp->a < n_reader+n_writer);
   REQUIRE(gp->a == gp->b);
   REQUIRE(gp->b == gp->c);
-
   pmss::deinit_service();
 }

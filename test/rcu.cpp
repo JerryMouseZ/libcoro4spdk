@@ -19,14 +19,14 @@ struct Foo {
 Foo* gp = new Foo();
 
 task<int> reader(int i) {
-  rcu::rcu_read_lock();
+  pmss::rcu::rcu_read_lock();
   Foo* p = gp;
 
   assert(p->a == 0 || p->a == 2);
   REQUIRE(p->a == p->b);
   REQUIRE(p->b == p->c);
 
-  rcu::rcu_read_unlock();
+  pmss::rcu::rcu_read_unlock();
 
   co_return 0;
 }
@@ -38,12 +38,12 @@ task<int> writer(int i) {
   p->c = i;
 
   Foo* q = gp;
-  rcu::rcu_assign_pointer(&gp, &p);
+  pmss::rcu::rcu_assign_pointer(gp, p);
 
-  co_await rcu::rcu_sync_run();
+  co_await pmss::rcu::rcu_sync_run();
 
   delete q;
-  
+
   co_return 0;
 }
 

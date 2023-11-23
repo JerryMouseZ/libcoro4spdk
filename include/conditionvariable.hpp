@@ -200,8 +200,7 @@ inline void ConditionVariable<void>::notify() noexcept {
 
 inline void ConditionVariable<void>::reset() noexcept {
   pointer_type self = static_cast<pointer_type>(this);
-  _awaiters.compare_exchange_strong(self, nullptr, std::memory_order_relaxed);
-  // _awaiters.compare_exchange_strong(self, nullptr, std::memory_order_acq_rel, std::memory_order_relaxed);
+  _awaiters.compare_exchange_strong(self, nullptr, std::memory_order_release);
 }
 
 inline void ConditionVariable<void>::resumeWaiters(
