@@ -12,7 +12,7 @@ namespace rcu {
 
 std::atomic<unsigned long> versions[256];
 std::atomic<unsigned long> sequencer = 0;
-const static unsigned long DONE = LONG_MAX;
+const static unsigned long DONE = LONG_LONG_MAX;
 unsigned long writer_version;
 unsigned long oldest_version = 0;
 
@@ -49,6 +49,25 @@ task<void> rcu_sync_run() {
     update_oldest();
   }
 }
+
+/* implementation below may be faster than above, because of less traverses.
+But codes below not fully tested, if used in future, need more tests. */
+
+// bool can_pass() {
+//   for (int i=0; i<num_threads; i++) {
+//     if (writer_version >= versions[i].load(std::memory_order_acquire)) {
+//       return false;
+//     }
+//   }
+//   return true;
+// }
+
+// task<void> rcu_sync_run() {
+//   writer_version = sequencer.load(std::memory_order_acquire);
+//   while (!can_pass()) {
+//     co_await yield();
+//   }
+// }
 
 }  // namespace rcu
 }  // namespace pmss
