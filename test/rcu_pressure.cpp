@@ -27,11 +27,13 @@ int n_writer = 4;
 task<int> reader(int idx) {
   for (int i = 0; i < n_round; i++) {
     pmss::rcu::rcu_read_lock();
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+
     Foo* p = (Foo*)gp;
     REQUIRE(p->a == p->b);
     REQUIRE(p->b == p->c);
 
-    std::atomic_thread_fence(std::memory_order_seq_cst);
+    /* std::atomic_thread_fence(std::memory_order_seq_cst); */
     pmss::rcu::rcu_read_unlock();
   }
   co_return 0;
