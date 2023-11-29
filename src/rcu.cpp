@@ -21,11 +21,11 @@ void rcu_init() {
 }
 
 // does it need memory barrier for reader?
+// barrier is faster: maybe
 void rcu_read_lock() {
   int current_core = spdk_env_get_current_core();
-  versions[current_core].store(
-      sequencer.fetch_add(1, std::memory_order_acquire),
-      std::memory_order_release);
+  versions[current_core].store(sequencer.load(std::memory_order_acquire),
+                               std::memory_order_release);
 }
 
 void rcu_read_unlock() {
@@ -42,9 +42,8 @@ void update_oldest() {
 }
 
 task<void> rcu_sync_run() {
-  writer_version = sequencer.load(std::memory_order_acquire);
   update_oldest();
-  while (writer_version >= oldest_version) {
+  while (writer_version > oldest_version) {
     co_await yield();
     update_oldest();
   }
