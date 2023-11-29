@@ -16,7 +16,6 @@ template <typename T>
 static inline void rcu_assign_pointer(T*& p, T* v) {
   std::atomic_thread_fence(std::memory_order_seq_cst);
   p = v;
-  /* std::atomic_thread_fence(std::memory_order_seq_cst); */
   writer_version = sequencer.load(std::memory_order_relaxed) + 1;
   sequencer.store(writer_version, std::memory_order_release);
 }
@@ -24,6 +23,12 @@ static inline void rcu_assign_pointer(T*& p, T* v) {
 task<void> rcu_sync_run();
 
 void rcu_init();
+
+template <typename T>
+static inline T* rcu_dereference(T*& gp) {
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+  return gp;
+}
 
 }  // namespace rcu
 }  // namespace pmss
