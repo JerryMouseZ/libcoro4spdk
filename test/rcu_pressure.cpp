@@ -2,6 +2,7 @@
 #include "service.hpp"
 #include "spdk/env.h"
 #include "mutex.hpp"
+#include "spinlock.hpp"
 #include "task.hpp"
 #include <atomic>
 #include <catch2/catch_all.hpp>
@@ -20,24 +21,24 @@ struct Foo {
 Foo* gp = new Foo();
 
 int n_round = 100000;
-int n_reader = 100;
-int n_writer = 10;
+int n_reader = 32;
+int n_writer = 4;
 
 task<int> reader(int idx) {
   for (int i = 0; i < n_round; i++) {
     pmss::rcu::rcu_read_lock();
 
-    Foo* p = (Foo*)gp;
+    Foo* p = pmss::rcu::rcu_dereference(gp);
     REQUIRE(p->a == p->b);
     REQUIRE(p->b == p->c);
-    // printf("%d: %d %d %d\n", idx, p->a, p->b, p->c);
 
+    /* std::atomic_thread_fence(std::memory_order_seq_cst); */
     pmss::rcu::rcu_read_unlock();
   }
   co_return 0;
 }
 
-async_simple::coro::Mutex mutex;
+async_simple::coro::SpinLock mutex;
 
 task<int> writer(int idx) {
   for (int i = 0; i < n_round; i++) {
@@ -53,8 +54,6 @@ task<int> writer(int idx) {
 
     co_await pmss::rcu::rcu_sync_run();
 
-    // printf("%d: %d\n", idx, i);
-
     delete q;
     mutex.unlock();
   }
@@ -62,7 +61,7 @@ task<int> writer(int idx) {
 }
 
 TEST_CASE("rcu_pressure_test") {
-  pmss::init_service(16, json_file, bdev_dev);
+  pmss::init_service(32, json_file, bdev_dev);
   for (int i = 0; i < n_reader; i++) {
     pmss::add_task(reader(i));
   }
