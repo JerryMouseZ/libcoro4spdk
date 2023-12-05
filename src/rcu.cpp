@@ -3,8 +3,6 @@
 #include <atomic>
 #include <climits>
 #include "schedule.hpp"
-#include "conditionvariable.hpp"
-// #include "spinlock.hpp"
 #include "mutex.hpp"
 
 namespace pmss {
@@ -33,19 +31,10 @@ void rcu_read_unlock() {
   versions[current_core].store(DONE, std::memory_order_release);
 }
 
-void update_oldest() {
-  oldest_version = DONE;
-  for (int i = 0; i < num_threads; ++i) {
-    oldest_version =
-        std::min(versions[i].load(std::memory_order_acquire), oldest_version);
-  }
-}
-
 task<void> rcu_sync_run() {
-  update_oldest();
-  while (writer_version > oldest_version) {
-    co_await yield();
-    update_oldest();
+  for (int i = 0; i < num_threads; ++i) {
+    while (writer_version > versions[i].load(std::memory_order_acquire))
+      co_await yield();
   }
 }
 
