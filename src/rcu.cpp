@@ -31,7 +31,7 @@ void rcu_read_unlock() {
   versions[current_core].store(DONE, std::memory_order_release);
 }
 
-task<void> rcu_sync_run() {
+task<void> synchronize_rcu() {
   for (int i = 0; i < num_threads; ++i) {
     while (writer_version > versions[i].load(std::memory_order_acquire))
       co_await yield();

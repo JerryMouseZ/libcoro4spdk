@@ -20,7 +20,7 @@ static inline void rcu_assign_pointer(T*& p, T* v) {
   sequencer.store(writer_version, std::memory_order_release);
 }
 
-task<void> rcu_sync_run();
+task<void> synchronize_rcu();
 
 void rcu_init();
 

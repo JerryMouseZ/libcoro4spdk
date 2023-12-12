@@ -18,7 +18,7 @@ struct Foo {
   int c = 0;
 };
 
-Foo* gp = new Foo();
+Foo* gp = new Foo{0, 1, 2};
 
 int n_round = 100000;
 int n_reader = 32;
@@ -29,10 +29,9 @@ task<int> reader(int idx) {
     pmss::rcu::rcu_read_lock();
 
     Foo* p = pmss::rcu::rcu_dereference(gp);
-    REQUIRE(p->a == p->b);
-    REQUIRE(p->b == p->c);
+    REQUIRE(p->a + 1 == p->b);
+    REQUIRE(p->b + 1 == p->c);
 
-    /* std::atomic_thread_fence(std::memory_order_seq_cst); */
     pmss::rcu::rcu_read_unlock();
   }
   co_return 0;
@@ -42,19 +41,17 @@ async_simple::coro::SpinLock mutex;
 
 task<int> writer(int idx) {
   for (int i = 0; i < n_round; i++) {
+    co_await mutex.coLock();
     Foo* p = new Foo();
     p->a = idx;
-    p->b = idx;
-    p->c = idx;
+    p->b = idx + 1;
+    p->c = idx + 2;
 
-    co_await mutex.coLock();
-
-    Foo* q = (Foo*)gp;
+    Foo* oldgp = (Foo*)gp;
     pmss::rcu::rcu_assign_pointer(gp, p);
+    co_await pmss::rcu::synchronize_rcu();
 
-    co_await pmss::rcu::rcu_sync_run();
-
-    delete q;
+    delete oldgp;
     mutex.unlock();
   }
   co_return 0;
@@ -70,7 +67,5 @@ TEST_CASE("rcu_pressure_test") {
   }
   pmss::run();
   REQUIRE(gp != nullptr);
-  REQUIRE(gp->a == gp->b);
-  REQUIRE(gp->b == gp->c);
   pmss::deinit_service();
 }

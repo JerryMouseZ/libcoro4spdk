@@ -83,7 +83,7 @@ task<int> writer(int index, int loop) {
     int oldval = i;
     oldval += 1;
     val = oldval;
-    co_await pmss::rcu::rcu_sync_run();
+    co_await pmss::rcu::synchronize_rcu();
     rcu_spinlock.unlock();
   }
   co_return 0;

@@ -29,7 +29,7 @@ int n_round = 100000;
 int n_reader = 100;
 int n_writer = 10;
 
-Foo* gp = new Foo(n_reader-1);
+Foo* gp = new Foo(n_reader - 1);
 
 task<int> reader(int idx) {
   for (int i = 0; i < n_round; i++) {
@@ -39,8 +39,8 @@ task<int> reader(int idx) {
 
     REQUIRE(gp != nullptr);
     REQUIRE(p != nullptr);
-    REQUIRE(p->a >= n_reader-1);
-    REQUIRE(p->a < n_reader+n_writer);
+    REQUIRE(p->a >= n_reader - 1);
+    REQUIRE(p->a < n_reader + n_writer);
     // REQUIRE(p->b >= n_reader-1);
     // REQUIRE(p->b < n_reader+n_writer);
     // REQUIRE(p->c >= n_reader-1);
@@ -64,7 +64,7 @@ task<int> writer(int idx) {
     Foo* q = (Foo*)gp;
     pmss::rcu::rcu_assign_pointer(gp, p);
 
-    co_await pmss::rcu::rcu_sync_run();
+    co_await pmss::rcu::synchronize_rcu();
 
     delete q;
     mutex.unlock();
@@ -83,8 +83,8 @@ TEST_CASE("rcu_pressure_test") {
   }
   pmss::run();
   REQUIRE(gp != nullptr);
-  REQUIRE(gp->a >= n_reader-1);
-  REQUIRE(gp->a < n_reader+n_writer);
+  REQUIRE(gp->a >= n_reader - 1);
+  REQUIRE(gp->a < n_reader + n_writer);
   REQUIRE(gp->a == gp->b);
   REQUIRE(gp->b == gp->c);
   pmss::deinit_service();
