@@ -27,6 +27,7 @@ task<int> reader(int i) {
   REQUIRE(p->b == p->c);
 
   pmss::rcu::rcu_read_unlock();
+  fprintf(stderr, "reader %d complete\n", i);
 
   co_return 0;
 }
@@ -43,6 +44,7 @@ task<int> writer(int i) {
   co_await pmss::rcu::synchronize_rcu();
 
   delete q;
+  fprintf(stderr, "writer %d complete\n", i);
   co_return 0;
 }
 

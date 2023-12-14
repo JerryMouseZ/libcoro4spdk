@@ -14,20 +14,21 @@ extern unsigned long writer_version;
 
 template <typename T>
 static inline void rcu_assign_pointer(T*& p, T* v) {
-  std::atomic_thread_fence(std::memory_order_seq_cst);
+  /* std::atomic_thread_fence(std::memory_order_seq_cst); */
   p = v;
-  writer_version = sequencer.load(std::memory_order_relaxed) + 1;
-  sequencer.store(writer_version, std::memory_order_release);
 }
 
 task<void> synchronize_rcu();
 
 void rcu_init();
 
+void rcu_deinit(int threadi);
+
 template <typename T>
 static inline T* rcu_dereference(T*& gp) {
   std::atomic_thread_fence(std::memory_order_seq_cst);
-  return gp;
+  std::atomic<T*> loader(gp);
+  return loader.load(std::memory_order_consume);
 }
 
 }  // namespace rcu

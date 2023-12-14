@@ -84,13 +84,17 @@ void task_done(void* args) {
   }
 }
 
+void task_fini() {
+  int core = spdk_env_get_current_core();
+  rcu::rcu_deinit(core);
+  spdk_thread_send_msg(main_thread, task_done, nullptr);
+}
+
 task<void> task_run(void* args) {
   task<int>* t = (task<int>*)
       args;  // NOTICE：我觉得这里不能固定模板类型，因为本就无法确定task的类型
   co_await* t;
-  // 不理解为什么到这里的时候执行就到了reactor 0上
-  // 创建线程的时候明明是另外一个核心上运行的
-  spdk_thread_send_msg(main_thread, task_done, nullptr);
+  task_fini();
 }
 
 void service_thread_run(void* args) {

@@ -23,10 +23,13 @@
 #ifndef ASYNC_SIMPLE_CORO__MUTEXH
 #define ASYNC_SIMPLE_CORO__MUTEXH
 
+#include <spdk/env.h>
 #include <atomic>
 #include <cassert>
 #include <coroutine>
 #include <mutex>
+#include "module.hpp"
+#include "schedule.hpp"
 
 namespace async_simple {
 namespace coro {
@@ -204,6 +207,7 @@ class Mutex {
                                          std::memory_order_relaxed)) {
           // Queued waiter successfully. Awaiting coroutine should
           // suspend.
+          int core = spdk_env_get_current_core();
           return true;
         }
       }
