@@ -14,10 +14,8 @@ extern unsigned long writer_version;
 
 template <typename T>
 static inline void rcu_assign_pointer(T*& p, T* v) {
-  std::atomic_thread_fence(std::memory_order_seq_cst);
   p = v;
   /* std::atomic_thread_fence(std::memory_order_seq_cst); */
-  writer_version = sequencer.fetch_add(1, std::memory_order_acq_rel) + 1;
   // writer_version = sequencer.load(std::memory_order_acquire);
 }
 
