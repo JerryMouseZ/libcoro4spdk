@@ -33,7 +33,6 @@ task<int> reader(int idx) {
 
     pmss::rcu::rcu_read_unlock();
   }
-  fprintf(stderr, "reader %d complete!\n", idx);
   co_return 0;
 }
 
@@ -54,12 +53,11 @@ task<int> writer(int idx) {
     delete oldgp;
     mutex.unlock();
   }
-  fprintf(stderr, "writer %d complete!\n", idx);
   co_return 0;
 }
 
 TEST_CASE("rcu_pressure_test") {
-  pmss::init_service(8, json_file, bdev_dev);
+  pmss::init_service(32, json_file, bdev_dev);
   for (int i = 0; i < n_reader; i++) {
     pmss::add_task(reader(i));
   }

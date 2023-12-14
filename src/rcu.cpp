@@ -10,6 +10,7 @@ namespace pmss {
 namespace rcu {
 
 std::atomic<unsigned long> versions[256];
+std::atomic<int> qsbr_iters[256];
 std::atomic<unsigned long> sequencer = 1;
 /* const static unsigned long DONE = LONG_LONG_MAX; */
 
@@ -25,16 +26,25 @@ void rcu_deinit(int threadi) {
 // does it need memory barrier for reader?
 // barrier is faster: maybe
 void rcu_read_lock() {
-  std::atomic_thread_fence(std::memory_order_seq_cst);
+  /* std::atomic_thread_fence(std::memory_order_seq_cst); */
+}
+
+void qsbr() {
+  int current_core = spdk_env_get_current_core();
 }
 
 void rcu_read_unlock() {
-  /* int current_core = spdk_env_get_current_core(); */
-  /* versions[current_core].store(DONE, std::memory_order_release); */
-  std::atomic_thread_fence(std::memory_order_seq_cst);
+  /* qsbr(); */
+  /* return; */
   int current_core = spdk_env_get_current_core();
-  versions[current_core].store(sequencer.load(std::memory_order_acquire),
-                               std::memory_order_release);
+  qsbr_iters[current_core]++;
+  if (qsbr_iters[current_core] == 128) [[unlikely]] {
+    qsbr_iters[current_core] = 0;
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    versions[current_core].store(sequencer.load(std::memory_order_acquire),
+                                 std::memory_order_release);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+  }
 }
 
 task<void> synchronize_rcu() {
