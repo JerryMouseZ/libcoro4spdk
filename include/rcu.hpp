@@ -14,14 +14,22 @@ extern unsigned long writer_version;
 
 template <typename T>
 static inline void rcu_assign_pointer(T*& p, T* v) {
-  p = v;
+  *((volatile T**)&p) = v;
+  /* p = v; */
   /* std::atomic_thread_fence(std::memory_order_seq_cst); */
   // writer_version = sequencer.load(std::memory_order_acquire);
+}
+
+template <typename T>
+static inline T* rcu_dereference(T*& p) {
+  return (T*)*((volatile T**)&p);
 }
 
 task<void> rcu_sync_run();
 
 void rcu_init();
+
+void rcu_offline();
 
 }  // namespace rcu
 }  // namespace pmss

@@ -14,6 +14,7 @@ std::atomic<unsigned long> sequencer = 0;
 const static unsigned long DONE = LONG_LONG_MAX;
 unsigned long writer_version;
 unsigned long oldest_version = 0;
+thread_local int first_rcu = 0;
 
 void rcu_init() {
   std::fill(versions, versions + 256, LONG_LONG_MAX);
@@ -23,16 +24,20 @@ void rcu_init() {
 // barrier is faster: maybe
 void rcu_read_lock() {
   int current_core = spdk_env_get_current_core();
-  unsigned long old_version =
-      versions[current_core].load(std::memory_order_relaxed);
+  first_rcu++;
   versions[current_core].store(sequencer.load(std::memory_order_acquire),
                                std::memory_order_release);
-  /* if (old_version == DONE) [[unlikely]] { */
-  /*   std::atomic_thread_fence(std::memory_order_seq_cst); */
-  /* } */
+  if (first_rcu == 1) [[unlikely]] {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+  }
 }
 
 void rcu_read_unlock() {
+  /* int current_core = spdk_env_get_current_core(); */
+  /* versions[current_core].store(DONE, std::memory_order_release); */
+}
+
+void rcu_offline() {
   int current_core = spdk_env_get_current_core();
   versions[current_core].store(DONE, std::memory_order_release);
 }
