@@ -15,6 +15,7 @@ const static unsigned long DONE = LONG_LONG_MAX;
 unsigned long writer_version;
 unsigned long oldest_version = 0;
 thread_local int first_rcu = 0;
+thread_local int rcu_count = 0;
 
 void rcu_init() {
   std::fill(versions, versions + 256, LONG_LONG_MAX);
@@ -23,13 +24,23 @@ void rcu_init() {
 // does it need memory barrier for reader?
 // barrier is faster: maybe
 void rcu_read_lock() {
-  int current_core = spdk_env_get_current_core();
-  first_rcu++;
-  versions[current_core].store(sequencer.load(std::memory_order_acquire),
-                               std::memory_order_release);
-  if (first_rcu == 1) [[unlikely]] {
+  if (first_rcu == 0) [[unlikely]] {
+    int current_core = spdk_env_get_current_core();
+    first_rcu++;
+    versions[current_core].store(sequencer.load(std::memory_order_acquire),
+                                 std::memory_order_release);
     std::atomic_thread_fence(std::memory_order_seq_cst);
+    return;
   }
+  rcu_count++;
+  if (rcu_count == 1023) {
+    int current_core = spdk_env_get_current_core();
+    versions[current_core].store(sequencer.load(std::memory_order_acquire),
+                                 std::memory_order_release);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    rcu_count = 0;
+  }
+  /* if (first_rcu == 1) [[unlikely]] {} */
 }
 
 void rcu_read_unlock() {
