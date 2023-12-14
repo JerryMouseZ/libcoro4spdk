@@ -4,7 +4,6 @@
 #include <climits>
 #include "schedule.hpp"
 #include "conditionvariable.hpp"
-// #include "spinlock.hpp"
 #include "mutex.hpp"
 
 namespace pmss {
@@ -24,8 +23,13 @@ void rcu_init() {
 // barrier is faster: maybe
 void rcu_read_lock() {
   int current_core = spdk_env_get_current_core();
+  unsigned long old_version =
+      versions[current_core].load(std::memory_order_relaxed);
   versions[current_core].store(sequencer.load(std::memory_order_acquire),
                                std::memory_order_release);
+  /* if (old_version == DONE) [[unlikely]] { */
+  /*   std::atomic_thread_fence(std::memory_order_seq_cst); */
+  /* } */
 }
 
 void rcu_read_unlock() {
@@ -42,31 +46,13 @@ void update_oldest() {
 }
 
 task<void> rcu_sync_run() {
+  writer_version = sequencer.fetch_add(1, std::memory_order_acq_rel) + 1;
   update_oldest();
   while (writer_version > oldest_version) {
     co_await yield();
     update_oldest();
   }
 }
-
-/* implementation below may be faster than above, because of less traverses.
-But codes below not fully tested, if used in future, need more tests. */
-
-// bool can_pass() {
-//   for (int i=0; i<num_threads; i++) {
-//     if (writer_version >= versions[i].load(std::memory_order_acquire)) {
-//       return false;
-//     }
-//   }
-//   return true;
-// }
-
-// task<void> rcu_sync_run() {
-//   writer_version = sequencer.load(std::memory_order_acquire);
-//   while (!can_pass()) {
-//     co_await yield();
-//   }
-// }
 
 }  // namespace rcu
 }  // namespace pmss
