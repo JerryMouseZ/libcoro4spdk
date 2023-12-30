@@ -36,7 +36,6 @@ task<int> reader(int index, int loop) {
   int res = 0;
   for (int i = 0; i < loop; ++i) {
     pmss::rcu::rcu_read_lock();
-    std::atomic_thread_fence(std::memory_order_seq_cst);
     res += val;
     pmss::rcu::rcu_read_unlock();
   }
