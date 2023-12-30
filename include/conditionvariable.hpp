@@ -16,6 +16,7 @@
 #ifndef ASYNC_SIMPLE_CORO_CONDITION_VARIABLE_H
 #define ASYNC_SIMPLE_CORO_CONDITION_VARIABLE_H
 
+#include "rcu.hpp"
 #include "task.hpp"
 #include <atomic>
 #include <cassert>
@@ -60,6 +61,7 @@ class ConditionVariableAwaiter {
   bool await_ready() const noexcept { return false; }
 
   void await_suspend(std::coroutine_handle<> continuation) noexcept {
+    pmss::rcu::rcu_offline();
     _continuation = continuation;
     std::unique_lock<Lock> lock{_lock, std::adopt_lock};
     auto awaitings = _cv->_awaiters.load(std::memory_order_relaxed);
@@ -173,6 +175,7 @@ class ConditionVariableAwaiter<void> {
     } while (!_cv->_awaiters.compare_exchange_weak(
         awaitings, static_cast<pointer_type>(this), std::memory_order_release,
         std::memory_order_acquire));
+    pmss::rcu::rcu_offline();
     return true;
   }
   void await_resume() const noexcept {}

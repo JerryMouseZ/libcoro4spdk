@@ -6,7 +6,6 @@
 #include <vector>
 #include "task.hpp"
 #include "service.hpp"
-#include "sharedmutex.hpp"
 #include "spinlock.hpp"
 #include "rcu.hpp"
 #include "mutex.hpp"
@@ -33,16 +32,6 @@ task<int> reader(int index, int loop, async_simple::coro::SpinLock& lock) {
   co_return res;
 }
 
-task<int> reader(int index, int loop, async_simple::coro::SharedMutex& lock) {
-  int res = 0;
-  for (int i = 0; i < loop; ++i) {
-    co_await lock.coLockShared();
-    res += val;
-    co_await lock.unlockShared();
-  }
-  co_return res;
-}
-
 task<int> reader(int index, int loop) {
   int res = 0;
   for (int i = 0; i < loop; ++i) {
@@ -61,16 +50,6 @@ task<int> writer(int index, int loop, LockType& lock) {
     co_await lock.coLock();
     ++val;
     lock.unlock();
-  }
-  co_return 0;
-}
-
-task<int> writer(int index, int loop, async_simple::coro::SharedMutex& lock) {
-  int res = 0;
-  for (int i = 0; i < loop; ++i) {
-    co_await lock.coLock();
-    ++val;
-    co_await lock.unlock();
   }
   co_return 0;
 }
@@ -155,7 +134,6 @@ int main(int argc, char* argv[]) {
 
   timeval begin;
   async_simple::coro::Mutex mutex;
-  async_simple::coro::SharedMutex rwlock;
   async_simple::coro::SpinLock spinlock;
 
   gettimeofday(&begin, nullptr);
@@ -167,8 +145,6 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < num_readers; ++i) {
     if (type == Mutex)
       pmss::add_task(reader(i, iterations, mutex));
-    else if (type == RwLock)
-      pmss::add_task(reader(i, iterations, rwlock));
     else
       pmss::add_task(reader(i, iterations, spinlock));
   }
@@ -176,8 +152,6 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < num_writers; ++i) {
     if (type == Mutex)
       pmss::add_task(writer(i, iterations, mutex));
-    else if (type == RwLock)
-      pmss::add_task(writer(i, iterations, rwlock));
     else
       pmss::add_task(writer(i, iterations, spinlock));
   }
