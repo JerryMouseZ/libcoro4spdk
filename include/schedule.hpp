@@ -3,6 +3,7 @@
 #pragma once
 
 #include <spdk/bdev.h>
+#include "rcu.hpp"
 #include "module.hpp"
 #include <coroutine>
 #include <algorithm>
@@ -34,6 +35,7 @@ void scheduler_init(void* args);
 struct YieldAwaiter {
   bool await_ready() noexcept { return false; }
   void await_suspend(std::coroutine_handle<> continuation) noexcept {
+    rcu::rcu_offline();
     spdk_thread_send_msg(spdk_get_thread(), service_thread_run_yield,
                          continuation.address());
   }

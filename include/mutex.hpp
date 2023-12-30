@@ -27,6 +27,7 @@
 #include <cassert>
 #include <coroutine>
 #include <mutex>
+#include "rcu.hpp"
 
 namespace async_simple {
 namespace coro {
@@ -204,6 +205,7 @@ class Mutex {
                                          std::memory_order_relaxed)) {
           // Queued waiter successfully. Awaiting coroutine should
           // suspend.
+          pmss::rcu::rcu_offline();
           return true;
         }
       }
