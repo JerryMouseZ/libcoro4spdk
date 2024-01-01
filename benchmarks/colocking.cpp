@@ -25,6 +25,8 @@ std::atomic<int> ongoing = 0;
 timeval begin;
 timeval end;
 
+int* gp = new int(0);
+
 std::atomic<int> taskcount;
 
 task<int> reader(int index, int loop, async_simple::coro::Mutex& lock) {
@@ -55,13 +57,15 @@ task<int> reader(int index, int loop, async_simple::coro::SpinLock& lock) {
   co_return res;
 }
 
-task<int> reader(int index, int loop) {
+task<int> rcureader(int index, int loop) {
   while (ongoing == 0)
     ;
   int res = 0;
   for (int i = 0; i < loop; ++i) {
     pmss::rcu::rcu_read_lock();
-    res += val;
+    int* p = pmss::rcu::rcu_dereference(gp);
+    assert(*p < loop);
+    res += *p;
     pmss::rcu::rcu_read_unlock();
   }
   if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
@@ -85,16 +89,18 @@ task<int> writer(int index, int loop, LockType& lock) {
 }
 
 async_simple::coro::SpinLock rcu_spinlock;
-task<int> writer(int index, int loop) {
+task<int> rcuwriter(int index, int loop) {
   while (ongoing == 0)
     ;
   int res = 0;
   for (int i = 0; i < loop; ++i) {
     co_await rcu_spinlock.coLock();
-    int oldval = i;
-    oldval += 1;
-    val = oldval;
+    int* newp = (int*)malloc(sizeof(int));
+    *newp = i;
+    int* oldp = pmss::rcu::rcu_dereference(gp);
+    pmss::rcu::rcu_assign_pointer(gp, newp);
     co_await pmss::rcu::rcu_sync_run();
+    free(oldp);
     rcu_spinlock.unlock();
   }
   if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
@@ -155,9 +161,9 @@ void print_result(timeval begin, timeval end) {
 
 void run_rcu() {
   for (int i = 0; i < num_writers; ++i)
-    pmss::add_task(writer(i, iterations));
+    pmss::add_task(rcuwriter(i, iterations));
   for (int i = 0; i < num_readers; ++i)
-    pmss::add_task(reader(i, iterations));
+    pmss::add_task(rcureader(i, iterations));
   pmss::run();
 }
 
