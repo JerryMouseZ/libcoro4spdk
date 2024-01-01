@@ -2,12 +2,6 @@ add_executable(colocking_benchmarks colocking.cpp)
 target_include_directories(colocking_benchmarks PUBLIC include)
 target_link_libraries(colocking_benchmarks PRIVATE libcoro4spdk)
 
-add_executable(empty empty.cpp)
-target_include_directories(empty PUBLIC include)
-target_link_libraries(empty PRIVATE libcoro4spdk)
-
-
-
 add_executable(posixlocking_benchmarks posixlocking.cpp)
 target_include_directories(posixlocking_benchmarks PUBLIC include)
 target_link_libraries(posixlocking_benchmarks PRIVATE pthread)
