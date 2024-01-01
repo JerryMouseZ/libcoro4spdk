@@ -25,7 +25,9 @@ std::atomic<int> ongoing = 0;
 timeval begin;
 timeval end;
 
-int* gp = new int(0);
+int rcu_data[2] = {0, 0x3fffffff};
+int* gp = &rcu_data[0];
+int cur;
 
 std::atomic<int> taskcount;
 
@@ -88,19 +90,20 @@ task<int> writer(int index, int loop, LockType& lock) {
   co_return 0;
 }
 
-async_simple::coro::SpinLock rcu_spinlock;
+async_simple::coro::Mutex rcu_spinlock;
 task<int> rcuwriter(int index, int loop) {
   while (ongoing == 0)
     ;
   int res = 0;
   for (int i = 0; i < loop; ++i) {
     co_await rcu_spinlock.coLock();
-    int* newp = (int*)malloc(sizeof(int));
+    cur = !cur;
+    int* newp = &rcu_data[cur];
     *newp = i;
     int* oldp = pmss::rcu::rcu_dereference(gp);
     pmss::rcu::rcu_assign_pointer(gp, newp);
     co_await pmss::rcu::rcu_sync_run();
-    free(oldp);
+    *oldp = 0x3fffffff;
     rcu_spinlock.unlock();
   }
   if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
