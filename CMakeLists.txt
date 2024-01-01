@@ -24,9 +24,7 @@ target_include_directories(libcoro4spdk PRIVATE ${spdk_root}/include)
 target_include_directories(libcoro4spdk PUBLIC include)
 
 if (ENABLE_BENCHMARK)
-add_executable(locking_benchmark ./benchmarks/locking.cpp)
-target_include_directories(locking_benchmark PUBLIC include)
-target_link_libraries(locking_benchmark PRIVATE libcoro4spdk)
+add_subdirectory(benchmarks)
 endif()
 
 function(add_test testname)
