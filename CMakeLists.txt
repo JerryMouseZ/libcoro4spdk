@@ -2,7 +2,7 @@ project(libcoro4spdk)
 cmake_minimum_required(VERSION 3.22)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_COMPILER clang++)
+# set(CMAKE_CXX_COMPILER clang++)
 add_compile_options(-O3 -Werror)
 add_library(libcoro4spdk STATIC src/rcu.cpp src/service.cpp src/schedule.cpp)
 OPTION(ENABLE_TEST "on for build tests and unit tests" ON)
@@ -20,7 +20,7 @@ target_link_options(libcoro4spdk PRIVATE ${spdk_link_options})
 
 # set linker options after object file list i.e. dependencies
 target_link_libraries(libcoro4spdk PRIVATE ${spdk_link_libraries})
-target_include_directories(libcoro4spdk PRIVATE ${spdk_root}/include)
+target_include_directories(libcoro4spdk PUBLIC ${spdk_root}/include)
 target_include_directories(libcoro4spdk PUBLIC include)
 
 if (ENABLE_BENCHMARK)

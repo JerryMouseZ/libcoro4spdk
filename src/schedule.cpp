@@ -10,7 +10,7 @@ char json_file[16];
 std::vector<task<int>> tasks;
 std::list<task<void>> wrapper_tasks;
 int num_threads;
-char cpumask[8] = "0x";
+char cpumask[16] = "0x";
 spdk_bdev_desc* desc;
 spdk_bdev* bdev;
 int alive_tasks;
