@@ -6,11 +6,13 @@
 #include <unistd.h>
 #include <iostream>
 #include <vector>
+#include "schedule.hpp"
 #include "task.hpp"
 #include "service.hpp"
 #include "spinlock.hpp"
 #include "rcu.hpp"
 #include "mutex.hpp"
+#include "sharedmutex.hpp"
 
 enum LockType { Mutex, SpinLock, RwLock, RCU };
 std::vector<std::string> locktypes = {"mutex", "spinlock", "rwlock", "rcu"};
@@ -57,6 +59,34 @@ task<int> reader(int index, int loop, async_simple::coro::SpinLock& lock) {
   if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
     gettimeofday(&end, nullptr);
   co_return res;
+}
+
+task<int> reader(int index, int loop, async_simple::coro::SharedMutex& lock) {
+  while (ongoing == 0)
+    ;
+  int res = 0;
+  for (int i = 0; i < loop; ++i) {
+    co_await lock.coLockShared();
+    res += val;
+    co_await lock.unlockShared();
+  }
+  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
+    gettimeofday(&end, nullptr);
+  co_return res;
+}
+
+task<int> writer(int index, int loop, async_simple::coro::SharedMutex& lock) {
+  while (ongoing == 0)
+    ;
+  int res = 0;
+  for (int i = 0; i < loop; ++i) {
+    co_await lock.coLock();
+    ++val;
+    co_await lock.unlock();
+  }
+  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
+    gettimeofday(&end, nullptr);
+  co_return 0;
 }
 
 task<int> rcureader(int index, int loop) {
@@ -174,6 +204,7 @@ void benchmark_thread() {
   pmss::init_service(thread_num, "bdev.json", "Malloc0");
 
   async_simple::coro::Mutex mutex;
+  async_simple::coro::SharedMutex smutex;
   async_simple::coro::SpinLock spinlock;
 
   if (type == RCU) {
@@ -184,6 +215,8 @@ void benchmark_thread() {
   for (int i = 0; i < num_readers; ++i) {
     if (type == Mutex)
       pmss::add_task(reader(i, iterations, mutex));
+    else if (type == RwLock)
+      pmss::add_task(reader(i, iterations, smutex));
     else
       pmss::add_task(reader(i, iterations, spinlock));
   }
@@ -191,6 +224,8 @@ void benchmark_thread() {
   for (int i = 0; i < num_writers; ++i) {
     if (type == Mutex)
       pmss::add_task(writer(i, iterations, mutex));
+    else if (type == RwLock)
+      pmss::add_task(writer(i, iterations, smutex));
     else
       pmss::add_task(writer(i, iterations, spinlock));
   }

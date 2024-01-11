@@ -5,3 +5,8 @@ target_link_libraries(colocking_benchmarks PRIVATE libcoro4spdk)
 add_executable(posixlocking_benchmarks posixlocking.cpp)
 target_include_directories(posixlocking_benchmarks PUBLIC include)
 target_link_libraries(posixlocking_benchmarks PRIVATE pthread)
+
+add_executable(kernelrcu_benchmarks kernelrcu.cpp)
+target_include_directories(kernelrcu_benchmarks PUBLIC include)
+target_link_libraries(kernelrcu_benchmarks PRIVATE pthread)
+

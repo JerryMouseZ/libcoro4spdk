@@ -1,14 +1,17 @@
+#include "include/BS_thread_pool.hpp"
 #include <algorithm>
 #include <atomic>
+#include <bits/getopt_core.h>
 #include <cstdio>
 #include <cstdlib>
-#include <pthread.h>
-#include <sys/time.h>
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <pthread.h>
 #include <shared_mutex>
+#include <sys/time.h>
 #include <thread>
+#include <unistd.h>
 #include <vector>
 
 namespace std {
@@ -18,7 +21,7 @@ struct spinlock {
   void lock() { pthread_spin_lock(&_t); }
   void unlock() { pthread_spin_unlock(&_t); }
 };
-};  // namespace std
+}; // namespace std
 
 enum LockType { Mutex, SpinLock, RwLock, RCU };
 std::vector<std::string> locktypes = {"mutex", "spinlock", "rwlock", "rcu"};
@@ -35,7 +38,7 @@ timeval end;
 
 std::atomic<int> taskcount;
 
-void spinreader(int index, int loop, std::spinlock& lock) {
+void spinreader(int index, int loop, std::spinlock &lock) {
   while (ongoing == 0)
     ;
   int res = 0;
@@ -48,7 +51,7 @@ void spinreader(int index, int loop, std::spinlock& lock) {
     gettimeofday(&end, nullptr);
 }
 
-void mutexreader(int index, int loop, std::mutex& lock) {
+void mutexreader(int index, int loop, std::mutex &lock) {
   while (ongoing == 0)
     ;
   int res = 0;
@@ -61,7 +64,7 @@ void mutexreader(int index, int loop, std::mutex& lock) {
     gettimeofday(&end, nullptr);
 }
 
-void smutexreader(int index, int loop, std::shared_mutex& slock) {
+void smutexreader(int index, int loop, std::shared_mutex &slock) {
   while (ongoing == 0)
     ;
   int res = 0;
@@ -74,7 +77,7 @@ void smutexreader(int index, int loop, std::shared_mutex& slock) {
     gettimeofday(&end, nullptr);
 }
 
-void spinwriter(int index, int loop, std::spinlock& lock) {
+void spinwriter(int index, int loop, std::spinlock &lock) {
   while (ongoing == 0)
     ;
   int res = 0;
@@ -87,7 +90,7 @@ void spinwriter(int index, int loop, std::spinlock& lock) {
     gettimeofday(&end, nullptr);
 }
 
-void mutexwriter(int index, int loop, std::mutex& lock) {
+void mutexwriter(int index, int loop, std::mutex &lock) {
   while (ongoing == 0)
     ;
   int res = 0;
@@ -100,7 +103,7 @@ void mutexwriter(int index, int loop, std::mutex& lock) {
     gettimeofday(&end, nullptr);
 }
 
-void smutexwriter(int index, int loop, std::shared_mutex& lock) {
+void smutexwriter(int index, int loop, std::shared_mutex &lock) {
   while (ongoing == 0)
     ;
   int res = 0;
@@ -113,46 +116,50 @@ void smutexwriter(int index, int loop, std::shared_mutex& lock) {
     gettimeofday(&end, nullptr);
 }
 
-void print_usage(int argc, char** argv) {
+void print_usage(int argc, char **argv) {
   fprintf(stderr,
           "usage: %s -t [mutex/spinlock/sharedmutex/rcu] -r [reader num] "
           "-w [writer num] "
+          "-c [core num] "
           "-i iterations\n",
           argv[0]);
 }
-void args_parse(int argc, char** argv) {
+void args_parse(int argc, char **argv) {
   if (argc < 2) {
     print_usage(argc, argv);
     exit(-1);
   }
 
   int c;
-  while ((c = getopt(argc, argv, "t:r:w:i:")) != -1) {
+  while ((c = getopt(argc, argv, "t:r:w:i:c:")) != -1) {
     switch (c) {
-      case 't':
-        if (optarg[0] == 'm') {
-          type = Mutex;
-        } else if (optarg[0] == 's') {
-          if (optarg[1] == 'p')
-            type = SpinLock;
-          else
-            type = RwLock;
-        } else {
-          type = RCU;
-        }
-        break;
-      case 'r':
-        num_readers = atoi(optarg);
-        break;
-      case 'w':
-        num_writers = atoi(optarg);
-        break;
-      case 'i':
-        iterations = atoi(optarg);
-        break;
-      default:
-        print_usage(argc, argv);
-        exit(-1);
+    case 't':
+      if (optarg[0] == 'm') {
+        type = Mutex;
+      } else if (optarg[0] == 's') {
+        if (optarg[1] == 'p')
+          type = SpinLock;
+        else
+          type = RwLock;
+      } else {
+        type = RCU;
+      }
+      break;
+    case 'r':
+      num_readers = atoi(optarg);
+      break;
+    case 'w':
+      num_writers = atoi(optarg);
+      break;
+    case 'i':
+      iterations = atoi(optarg);
+      break;
+    case 'c':
+      thread_num = atoi(optarg);
+      break;
+    default:
+      print_usage(argc, argv);
+      exit(-1);
     }
   }
   taskcount = num_readers + num_writers;
@@ -166,47 +173,43 @@ void print_result(timeval begin, timeval end) {
   printf("%lf s\n", elapse);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   args_parse(argc, argv);
-  std::vector<std::thread> readers(num_readers);
-  std::vector<std::thread> writers(num_writers);
 
+  BS::thread_pool pool(thread_num);
   std::mutex _mutex;
   std::spinlock _spinlock;
   std::shared_mutex _sharedmutex;
 
   for (int i = 0; i < num_readers; ++i) {
     if (type == Mutex) {
-      readers[i] = std::thread(mutexreader, i, iterations, std::ref(_mutex));
+      pool.detach_task([i, &_mutex]() { mutexreader(i, iterations, _mutex); });
     } else if (type == SpinLock) {
-      readers[i] = std::thread(spinreader, i, iterations, std::ref(_spinlock));
+      pool.detach_task(
+          [i, &_spinlock]() { spinreader(i, iterations, _spinlock); });
     } else {
-      readers[i] =
-          std::thread(smutexreader, i, iterations, std::ref(_sharedmutex));
+      pool.detach_task(
+          [i, &_sharedmutex]() { smutexreader(i, iterations, _sharedmutex); });
     }
   }
 
   for (int i = 0; i < num_writers; ++i) {
-    if (type == Mutex)
-      writers[i] = std::thread(mutexwriter, i, iterations, std::ref(_mutex));
-    else if (type == SpinLock)
-      writers[i] = std::thread(spinwriter, i, iterations, std::ref(_spinlock));
-    else {
-      writers[i] =
-          std::thread(smutexwriter, i, iterations, std::ref(_sharedmutex));
+    if (type == Mutex) {
+      pool.detach_task([i, &_mutex]() { mutexwriter(i, iterations, _mutex); });
+    } else if (type == SpinLock) {
+      pool.detach_task(
+          [i, &_spinlock]() { spinwriter(i, iterations, _spinlock); });
+    } else {
+      pool.detach_task(
+          [i, &_sharedmutex]() { smutexwriter(i, iterations, _sharedmutex); });
     }
   }
 
+  sleep(1);
   ongoing = 1;
   gettimeofday(&begin, nullptr);
 
-  for (int i = 0; i < num_readers; ++i) {
-    readers[i].join();
-  }
-
-  for (int i = 0; i < num_writers; ++i) {
-    writers[i].join();
-  }
+  pool.wait();
 
   print_result(begin, end);
 
