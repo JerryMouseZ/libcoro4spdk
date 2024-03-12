@@ -38,7 +38,7 @@ void rcu_offline() {
   rcu_count = 1023;
 }
 
-task<void> rcu_sync_run() {
+task<void> synchronize_rcu() {
   unsigned long writer_version =
       sequencer.fetch_add(1, std::memory_order_acquire) + 1;
   int current_core = spdk_env_get_current_core();

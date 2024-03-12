@@ -64,7 +64,7 @@ task<int> writer(int idx) {
     Foo* q = (Foo*)gp;
     pmss::rcu::rcu_assign_pointer(gp, p);
 
-    co_await pmss::rcu::rcu_sync_run();
+    co_await pmss::rcu::synchronize_rcu();
 
     delete q;
     mutex.unlock();

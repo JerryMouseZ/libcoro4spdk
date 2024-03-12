@@ -40,7 +40,7 @@ task<int> writer(int i) {
   Foo* q = gp;
   pmss::rcu::rcu_assign_pointer(gp, p);
 
-  co_await pmss::rcu::rcu_sync_run();
+  co_await pmss::rcu::synchronize_rcu();
 
   delete q;
   co_return 0;

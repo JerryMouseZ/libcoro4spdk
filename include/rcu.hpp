@@ -22,7 +22,7 @@ static inline T* rcu_dereference(T*& p) {
   return (T*)*((volatile T**)&p);
 }
 
-task<void> rcu_sync_run();
+task<void> synchronize_rcu();
 
 void rcu_init();
 

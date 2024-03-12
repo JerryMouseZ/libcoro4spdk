@@ -132,7 +132,7 @@ task<int> rcuwriter(int index, int loop) {
     *newp = i;
     int* oldp = pmss::rcu::rcu_dereference(gp);
     pmss::rcu::rcu_assign_pointer(gp, newp);
-    co_await pmss::rcu::rcu_sync_run();
+    co_await pmss::rcu::synchronize_rcu();
     *oldp = 0x3fffffff;
     rcu_spinlock.unlock();
   }
