@@ -17,38 +17,23 @@
 #include <unistd.h>
 #include <vector>
 
-namespace std {
-struct spinlock {
-  pthread_spinlock_t _t;
-  spinlock() { pthread_spin_init(&_t, PTHREAD_PROCESS_PRIVATE); }
-  void lock() { pthread_spin_lock(&_t); }
-  void unlock() { pthread_spin_unlock(&_t); }
-};
-};  // namespace std
-
-enum LockType { Mutex, SpinLock, RwLock, RCU };
-std::vector<std::string> locktypes = {"mutex", "spinlock", "rwlock", "rcu"};
-LockType type;
 int num_readers;
 int num_writers;
-int iterations;
+int iterations = 1;
 
 int val = 0;
 int thread_num = 1;
-std::atomic<int> ongoing = 0;
-timeval begin;
-timeval end;
 
-void spinreader(int index, int loop, int fd) {
+void spinreader(int index, int fd) {
   char buffer[128];
-  int ret = read(fd, buffer, loop);
+  int ret = read(fd, buffer, 1);
   if (ret == 0)
     return;
 }
 
-void spinwriter(int index, int loop, int fd) {
+void spinwriter(int index, int fd) {
   char buffer[128];
-  int ret = write(fd, buffer, loop);
+  int ret = write(fd, buffer, 1);
   if (ret == 0)
     return;
 }
@@ -88,14 +73,6 @@ void args_parse(int argc, char** argv) {
   }
 }
 
-void print_result(timeval begin, timeval end) {
-  printf("type: %s\tnum_readers: %d\tnumwriters: %d\titerations: %d\n",
-         locktypes[type].c_str(), num_readers, num_writers, iterations);
-  double elapse = (end.tv_sec - begin.tv_sec);
-  elapse += double(end.tv_usec - begin.tv_usec) / 1000000;
-  printf("%lf s\n", elapse);
-}
-
 int main(int argc, char* argv[]) {
   args_parse(argc, argv);
   BS::thread_pool pool(thread_num);
@@ -104,24 +81,32 @@ int main(int argc, char* argv[]) {
   char buffer[128];
 
   for (int i = 0; i < num_readers; ++i) {
-    pool.detach_task([i, fd]() { spinreader(i, iterations, fd); });
+    pool.detach_task([i, fd]() { spinreader(i, fd); });
   }
 
   for (int i = 0; i < num_writers; ++i) {
-    pool.detach_task([i, fd]() { spinwriter(i, iterations, fd); });
+    pool.detach_task([i, fd]() { spinwriter(i, fd); });
   }
   sleep(1);
 
+  // begin test
   int ret = write(fd, buffer, 0);
   if (ret != 0) {
     fprintf(stderr, "start error\n");
   }
 
+  sleep(1);                   // duration
+  ret = read(fd, buffer, 0);  // end test
   pool.wait();
 
-  ret = read(fd, buffer, 0);
+  ret = read(fd, buffer, 3);
   if (ret != 0) {
     fprintf(stderr, "get res error\n");
+  } else {
+    unsigned long read_cnt = *(unsigned long*)buffer;
+    unsigned long write_cnt = *(unsigned long*)(buffer + sizeof(unsigned long));
+    printf("read ops: %ld\twrite ops: %ld\ttotal ops: %ld\n", read_cnt,
+           write_cnt, read_cnt + write_cnt);
   }
 
   return 0;
