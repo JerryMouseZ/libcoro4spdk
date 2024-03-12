@@ -1,8 +1,10 @@
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <bits/getopt_core.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <iostream>
 #include <vector>
@@ -19,125 +21,146 @@ std::vector<std::string> locktypes = {"mutex", "spinlock", "rwlock", "rcu"};
 LockType type;
 int num_readers;
 int num_writers;
-int iterations;
-
-int val = 0;
 int thread_num = 1;
 std::atomic<int> ongoing = 0;
-timeval begin;
-timeval end;
-
-int rcu_data[2] = {0, 0x3fffffff};
-int* gp = &rcu_data[0];
 int cur;
+std::atomic<uint64_t> read_cnt = 0;
+std::atomic<uint64_t> write_cnt = 0;
+int durations = 1;
 
-std::atomic<int> taskcount;
+static inline void begin_test() {
+  ongoing.store(1, std::memory_order_release);
+}
 
-task<int> reader(int index, int loop, async_simple::coro::Mutex& lock) {
-  while (ongoing == 0)
+static inline void end_test() {
+  ongoing.store(2, std::memory_order_release);
+}
+
+static inline void wait_for_begin() {
+  while (ongoing.load() == 0)
     ;
+}
+
+struct test_obj {
+  int a = 8;
+};
+
+volatile test_obj rcu_data[2] = {8, 0x3fffffff};
+volatile test_obj* gp = &rcu_data[0];
+
+task<int> reader(int index, async_simple::coro::Mutex& lock) {
+  wait_for_begin();
   int res = 0;
-  for (int i = 0; i < loop; ++i) {
+  while (1) {
     co_await lock.coLock();
-    res += val;
+    assert(gp->a == 8);
     lock.unlock();
+    ++res;
+    if (ongoing.load() != 1) [[unlikely]]
+      break;
   }
-  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
-    gettimeofday(&end, nullptr);
+  read_cnt.fetch_add(res, std::memory_order_relaxed);
   co_return res;
 }
 
-task<int> reader(int index, int loop, async_simple::coro::SpinLock& lock) {
-  while (ongoing == 0)
-    ;
+task<int> reader(int index, async_simple::coro::SpinLock& lock) {
+  wait_for_begin();
   int res = 0;
-  for (int i = 0; i < loop; ++i) {
+  while (1) {
     co_await lock.coLock();
-    res += val;
+    assert(gp->a == 8);
     lock.unlock();
+    ++res;
+    if (ongoing.load() != 1) [[unlikely]]
+      break;
   }
-  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
-    gettimeofday(&end, nullptr);
+  read_cnt.fetch_add(res, std::memory_order_relaxed);
   co_return res;
 }
 
-task<int> reader(int index, int loop, async_simple::coro::SharedMutex& lock) {
-  while (ongoing == 0)
-    ;
+task<int> reader(int index, async_simple::coro::SharedMutex& lock) {
+  wait_for_begin();
   int res = 0;
-  for (int i = 0; i < loop; ++i) {
+  while (1) {
     co_await lock.coLockShared();
-    res += val;
+    assert(gp->a == 8);
     co_await lock.unlockShared();
+    ++res;
+    if (ongoing.load() != 1) [[unlikely]]
+      break;
   }
-  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
-    gettimeofday(&end, nullptr);
+  read_cnt.fetch_add(res, std::memory_order_relaxed);
   co_return res;
 }
 
-task<int> writer(int index, int loop, async_simple::coro::SharedMutex& lock) {
-  while (ongoing == 0)
-    ;
+task<int> rcureader(int index) {
+  wait_for_begin();
   int res = 0;
-  for (int i = 0; i < loop; ++i) {
-    co_await lock.coLock();
-    ++val;
-    co_await lock.unlock();
-  }
-  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
-    gettimeofday(&end, nullptr);
-  co_return 0;
-}
-
-task<int> rcureader(int index, int loop) {
-  while (ongoing == 0)
-    ;
-  int res = 0;
-  for (int i = 0; i < loop; ++i) {
+  while (1) {
     pmss::rcu::rcu_read_lock();
-    int* p = pmss::rcu::rcu_dereference(gp);
-    assert(*p < loop);
-    res += *p;
+    volatile test_obj* p = pmss::rcu::rcu_dereference(gp);
+    assert(p->a == 8);
     pmss::rcu::rcu_read_unlock();
+    ++res;
+    if (ongoing.load() != 1) [[unlikely]]
+      break;
   }
-  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
-    gettimeofday(&end, nullptr);
+  read_cnt.fetch_add(res, std::memory_order_relaxed);
   co_return res;
 }
 
 template <typename LockType>
-task<int> writer(int index, int loop, LockType& lock) {
-  while (ongoing == 0)
-    ;
+task<int> writer(int index, LockType& lock) {
+  wait_for_begin();
   int res = 0;
-  for (int i = 0; i < loop; ++i) {
+  while (1) {
     co_await lock.coLock();
-    ++val;
+    gp->a = 0;
+    gp->a = 8;
     lock.unlock();
+    ++res;
+    if (ongoing.load() != 1) [[unlikely]]
+      break;
   }
-  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
-    gettimeofday(&end, nullptr);
+  write_cnt.fetch_add(res, std::memory_order_relaxed);
   co_return 0;
 }
 
-async_simple::coro::Mutex rcu_spinlock;
-task<int> rcuwriter(int index, int loop) {
-  while (ongoing == 0)
-    ;
+task<int> writer(int index, async_simple::coro::SharedMutex& lock) {
+  wait_for_begin();
   int res = 0;
-  for (int i = 0; i < loop; ++i) {
-    co_await rcu_spinlock.coLock();
+  while (1) {
+    co_await lock.coLock();
+    gp->a = 0;
+    gp->a = 8;
+    co_await lock.unlock();
+    ++res;
+    if (ongoing.load() != 1) [[unlikely]]
+      break;
+  }
+  write_cnt.fetch_add(res, std::memory_order_relaxed);
+  co_return 0;
+}
+
+async_simple::coro::Mutex rcu_mutex;
+task<int> rcuwriter(int index) {
+  wait_for_begin();
+  int res = 0;
+  while (1) {
+    co_await rcu_mutex.coLock();
     cur = !cur;
-    int* newp = &rcu_data[cur];
-    *newp = i;
-    int* oldp = pmss::rcu::rcu_dereference(gp);
+    volatile test_obj* newp = &rcu_data[cur];
+    newp->a = 8;
+    volatile test_obj* oldp = pmss::rcu::rcu_dereference(gp);
     pmss::rcu::rcu_assign_pointer(gp, newp);
     co_await pmss::rcu::synchronize_rcu();
-    *oldp = 0x3fffffff;
-    rcu_spinlock.unlock();
+    oldp->a = 0;
+    rcu_mutex.unlock();
+    ++res;
+    if (ongoing.load() != 1) [[unlikely]]
+      break;
   }
-  if (taskcount.fetch_add(-1, std::memory_order_relaxed) == 1)
-    gettimeofday(&end, nullptr);
+  write_cnt.fetch_add(res, std::memory_order_relaxed);
   co_return 0;
 }
 
@@ -147,13 +170,13 @@ void args_parse(int argc, char** argv) {
             "usage: %s -t [mutex/spinlock/sharedmutex/rcu] -r [reader num] "
             "-w [writer num] "
             "-c [core num]"
-            "-i iterations\n",
+            "-d durations(default 1)\n",
             argv[0]);
     exit(-1);
   }
 
   int c;
-  while ((c = getopt(argc, argv, "t:r:w:i:c:")) != -1) {
+  while ((c = getopt(argc, argv, "t:r:w:d:c:")) != -1) {
     switch (c) {
       case 't':
         if (optarg[0] == 'm') {
@@ -173,31 +196,33 @@ void args_parse(int argc, char** argv) {
       case 'w':
         num_writers = atoi(optarg);
         break;
-      case 'i':
-        iterations = atoi(optarg);
+      case 'd':
+        durations = atoi(optarg);
         break;
       case 'c':
         thread_num = atoi(optarg);
         break;
+      default:
+        fprintf(stderr,
+                "usage: %s -t [mutex/spinlock/sharedmutex/rcu] -r [reader num] "
+                "-w [writer num] "
+                "-c [core num]"
+                "-d durations(default 1)\n",
+                argv[0]);
+        exit(-1);
     }
   }
-  taskcount = num_readers + num_writers;
+
+  printf("type: %s\tnum_readers: %d\tnumwriters: %d\tdurations: %d\n",
+         locktypes[type].c_str(), num_readers, num_writers, durations);
 }
 
-void print_result(timeval begin, timeval end) {
-  printf("type: %s\tnum_readers: %d\tnumwriters: %d\titerations: %d\n",
-         locktypes[type].c_str(), num_readers, num_writers, iterations);
-  double elapse = (end.tv_sec - begin.tv_sec);
-  elapse += double(end.tv_usec - begin.tv_usec) / 1000000;
-  printf("%lf s\n", elapse);
-}
-
-void run_rcu() {
-  for (int i = 0; i < num_writers; ++i)
-    pmss::add_task(rcuwriter(i, iterations));
-  for (int i = 0; i < num_readers; ++i)
-    pmss::add_task(rcureader(i, iterations));
-  pmss::run();
+// print ops
+void print_result() {
+  double write_ops = write_cnt / (double)durations;
+  double read_ops = read_cnt / (double)durations;
+  double ops = write_ops + read_ops;
+  printf("read_ops: %lf\twrite_ops: %lf\tops: %lf\n", read_ops, write_ops, ops);
 }
 
 void benchmark_thread() {
@@ -207,33 +232,34 @@ void benchmark_thread() {
   async_simple::coro::SharedMutex smutex;
   async_simple::coro::SpinLock spinlock;
 
-  if (type == RCU) {
-    run_rcu();
-    goto done;
-  }
+  while (num_readers + num_writers > 0) {
+    if (num_readers > 0) {
+      if (type == Mutex)
+        pmss::add_task(reader(num_readers, mutex));
+      else if (type == RwLock) {
+        pmss::add_task(reader(num_readers, smutex));
+      } else if (type == SpinLock)
+        pmss::add_task(reader(num_readers, spinlock));
+      else
+        pmss::add_task(rcureader(num_readers));
+      --num_readers;
+    }
 
-  for (int i = 0; i < num_readers; ++i) {
-    if (type == Mutex)
-      pmss::add_task(reader(i, iterations, mutex));
-    else if (type == RwLock)
-      pmss::add_task(reader(i, iterations, smutex));
-    else
-      pmss::add_task(reader(i, iterations, spinlock));
-  }
-
-  for (int i = 0; i < num_writers; ++i) {
-    if (type == Mutex)
-      pmss::add_task(writer(i, iterations, mutex));
-    else if (type == RwLock)
-      pmss::add_task(writer(i, iterations, smutex));
-    else
-      pmss::add_task(writer(i, iterations, spinlock));
+    if (num_writers > 0) {
+      if (type == Mutex)
+        pmss::add_task(writer(num_writers, mutex));
+      else if (type == RwLock)
+        pmss::add_task(writer(num_writers, smutex));
+      else if (type == SpinLock)
+        pmss::add_task(writer(num_writers, spinlock));
+      else
+        pmss::add_task(rcuwriter(num_writers));
+      --num_writers;
+    }
   }
 
   pmss::run();
-
-done:
-  print_result(begin, end);
+  print_result();
   pmss::deinit_service();
 }
 
@@ -241,8 +267,9 @@ int main(int argc, char* argv[]) {
   args_parse(argc, argv);
   std::thread t(benchmark_thread);
   sleep(1);
-  ongoing = 1;
-  gettimeofday(&begin, nullptr);
+  begin_test();
+  sleep(durations);
+  end_test();
   t.join();
   return 0;
 }
