@@ -233,18 +233,6 @@ void benchmark_thread() {
   async_simple::coro::SpinLock spinlock;
 
   while (num_readers + num_writers > 0) {
-    if (num_readers > 0) {
-      if (type == Mutex)
-        pmss::add_task(reader(num_readers, mutex));
-      else if (type == RwLock) {
-        pmss::add_task(reader(num_readers, smutex));
-      } else if (type == SpinLock)
-        pmss::add_task(reader(num_readers, spinlock));
-      else
-        pmss::add_task(rcureader(num_readers));
-      --num_readers;
-    }
-
     if (num_writers > 0) {
       if (type == Mutex)
         pmss::add_task(writer(num_writers, mutex));
@@ -255,6 +243,18 @@ void benchmark_thread() {
       else
         pmss::add_task(rcuwriter(num_writers));
       --num_writers;
+    }
+
+    if (num_readers > 0) {
+      if (type == Mutex)
+        pmss::add_task(reader(num_readers, mutex));
+      else if (type == RwLock) {
+        pmss::add_task(reader(num_readers, smutex));
+      } else if (type == SpinLock)
+        pmss::add_task(reader(num_readers, spinlock));
+      else
+        pmss::add_task(rcureader(num_readers));
+      --num_readers;
     }
   }
 
