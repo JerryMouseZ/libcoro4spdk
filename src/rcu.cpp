@@ -13,24 +13,15 @@ namespace rcu {
 std::atomic<unsigned long> versions[256];
 std::atomic<unsigned long> sequencer = 0;
 const static unsigned long DONE = LONG_LONG_MAX;
-thread_local int first_rcu = 0;
-thread_local int rcu_count = 0;
+thread_local int rcu_count = 1023;
 
 void rcu_init() {
   std::fill(versions, versions + 256, LONG_LONG_MAX);
 }
 
 void rcu_read_lock() {
-  if (first_rcu == 0) [[unlikely]] {
-    int current_core = spdk_env_get_current_core();
-    first_rcu++;
-    versions[current_core].store(sequencer.load(std::memory_order_acquire),
-                                 std::memory_order_release);
-    std::atomic_thread_fence(std::memory_order_seq_cst);
-    return;
-  }
   ++rcu_count;
-  if (rcu_count == 1023) {
+  if (rcu_count == 1024) {
     int current_core = spdk_env_get_current_core();
     versions[current_core].store(sequencer.load(std::memory_order_acquire),
                                  std::memory_order_release);
@@ -44,8 +35,7 @@ void rcu_read_unlock() {}
 void rcu_offline() {
   int current_core = spdk_env_get_current_core();
   versions[current_core].store(DONE, std::memory_order_release);
-  first_rcu = 0;
-  rcu_count = 0;
+  rcu_count = 1023;
 }
 
 task<void> rcu_sync_run() {

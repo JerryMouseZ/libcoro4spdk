@@ -19,7 +19,7 @@ set(spdk_link_libraries "${spdk_libs} ${spdk_env_libs} ${spdk_sys_libs}")
 target_link_options(libcoro4spdk PRIVATE ${spdk_link_options})
 
 # set linker options after object file list i.e. dependencies
-target_link_libraries(libcoro4spdk PRIVATE ${spdk_link_libraries} archive)
+target_link_libraries(libcoro4spdk PRIVATE ${spdk_link_libraries})
 target_include_directories(libcoro4spdk PRIVATE ${spdk_root}/include)
 target_include_directories(libcoro4spdk PUBLIC include)
 
