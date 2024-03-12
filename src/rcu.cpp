@@ -1,4 +1,5 @@
 #include "rcu.hpp"
+#include <pstl/glue_execution_defs.h>
 #include <algorithm>
 #include <atomic>
 #include <climits>
@@ -21,12 +22,15 @@ void rcu_init() {
 
 void rcu_read_lock() {
   ++rcu_count;
-  if (rcu_count == 1024) {
-    int current_core = spdk_env_get_current_core();
-    versions[current_core].store(sequencer.load(std::memory_order_acquire),
-                                 std::memory_order_release);
-    std::atomic_thread_fence(std::memory_order_seq_cst);
+  if (rcu_count == 1024) [[unlikely]] {
     rcu_count = 0;
+    int current_core = spdk_env_get_current_core();
+    unsigned long global_version = sequencer.load(std::memory_order_acquire);
+    if (global_version ==
+        versions[current_core].load(std::memory_order_relaxed))
+      return;
+    versions[current_core].store(global_version, std::memory_order_release);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
   }
 }
 
