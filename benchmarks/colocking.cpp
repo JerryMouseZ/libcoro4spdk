@@ -27,6 +27,7 @@ int cur;
 std::atomic<uint64_t> read_cnt = 0;
 std::atomic<uint64_t> write_cnt = 0;
 int durations = 1;
+int delay = 0;
 
 static inline void begin_test() {
   ongoing.store(1, std::memory_order_release);
@@ -48,12 +49,22 @@ struct test_obj {
 volatile test_obj rcu_data[2] = {8, 0x3fffffff};
 volatile test_obj* gp = &rcu_data[0];
 
+static inline void delay_sleep() {
+  if (delay == 0) [[likely]]
+    return;
+  int i = delay;
+  while (--i >= 0) {
+    __asm__ __volatile__("rep; nop" : : : "memory");
+  }
+}
+
 task<int> reader(int index, async_simple::coro::Mutex& lock) {
   wait_for_begin();
   int res = 0;
   while (1) {
     co_await lock.coLock();
     assert(gp->a == 8);
+    delay_sleep();
     lock.unlock();
     ++res;
     if (ongoing.load() != 1) [[unlikely]]
@@ -69,6 +80,7 @@ task<int> reader(int index, async_simple::coro::SpinLock& lock) {
   while (1) {
     co_await lock.coLock();
     assert(gp->a == 8);
+    delay_sleep();
     lock.unlock();
     ++res;
     if (ongoing.load() != 1) [[unlikely]]
@@ -84,6 +96,7 @@ task<int> reader(int index, async_simple::coro::SharedMutex& lock) {
   while (1) {
     co_await lock.coLockShared();
     assert(gp->a == 8);
+    delay_sleep();
     co_await lock.unlockShared();
     ++res;
     if (ongoing.load() != 1) [[unlikely]]
@@ -100,6 +113,7 @@ task<int> rcureader(int index) {
     pmss::rcu::rcu_read_lock();
     volatile test_obj* p = pmss::rcu::rcu_dereference(gp);
     assert(p->a == 8);
+    delay_sleep();
     pmss::rcu::rcu_read_unlock();
     ++res;
     if (ongoing.load() != 1) [[unlikely]]
@@ -176,7 +190,7 @@ void args_parse(int argc, char** argv) {
   }
 
   int c;
-  while ((c = getopt(argc, argv, "t:r:w:d:c:")) != -1) {
+  while ((c = getopt(argc, argv, "m:t:r:w:d:c:")) != -1) {
     switch (c) {
       case 't':
         if (optarg[0] == 'm') {
@@ -201,6 +215,9 @@ void args_parse(int argc, char** argv) {
         break;
       case 'c':
         thread_num = atoi(optarg);
+        break;
+      case 'm':
+        delay = atoi(optarg);
         break;
       default:
         fprintf(stderr,
@@ -233,18 +250,6 @@ void benchmark_thread() {
   async_simple::coro::SpinLock spinlock;
 
   while (num_readers + num_writers > 0) {
-    if (num_writers > 0) {
-      if (type == Mutex)
-        pmss::add_task(writer(num_writers, mutex));
-      else if (type == RwLock)
-        pmss::add_task(writer(num_writers, smutex));
-      else if (type == SpinLock)
-        pmss::add_task(writer(num_writers, spinlock));
-      else
-        pmss::add_task(rcuwriter(num_writers));
-      --num_writers;
-    }
-
     if (num_readers > 0) {
       if (type == Mutex)
         pmss::add_task(reader(num_readers, mutex));
@@ -255,6 +260,18 @@ void benchmark_thread() {
       else
         pmss::add_task(rcureader(num_readers));
       --num_readers;
+    }
+
+    if (num_writers > 0) {
+      if (type == Mutex)
+        pmss::add_task(writer(num_writers, mutex));
+      else if (type == RwLock)
+        pmss::add_task(writer(num_writers, smutex));
+      else if (type == SpinLock)
+        pmss::add_task(writer(num_writers, spinlock));
+      else
+        pmss::add_task(rcuwriter(num_writers));
+      --num_writers;
     }
   }
 
