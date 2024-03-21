@@ -18,7 +18,7 @@ extern char json_file[16];
 extern std::vector<task<int>> tasks;
 extern std::list<task<void>> wrapper_tasks;
 extern int num_threads;
-extern char cpumask[8];
+extern char cpumask[16];
 extern spdk_bdev_desc* desc;
 extern spdk_bdev* bdev;
 extern int alive_tasks;
