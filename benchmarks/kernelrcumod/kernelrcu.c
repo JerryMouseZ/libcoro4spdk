@@ -128,7 +128,6 @@ static ssize_t device_read(struct file* filp,   /* see include/linux/fs.h   */
   while (ongoing == 0)
     ;
   pr_info("read test start\n");
-  /* Number of bytes actually written to the buffer */
   for (;;) {
     int* p;
     rcu_read_lock();

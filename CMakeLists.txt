@@ -3,7 +3,13 @@ cmake_minimum_required(VERSION 3.22)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_COMPILER clang++)
-add_compile_options(-O3 -Werror)
+
+if (CMAKE_BUILD_TYPE MATCHES Debug)
+  add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+endif ()
+
+add_compile_options(-Werror)
 add_library(libcoro4spdk STATIC src/rcu.cpp src/service.cpp src/schedule.cpp)
 OPTION(ENABLE_TEST "on for build tests and unit tests" ON)
 OPTION(ENABLE_BENCHMARK "on for benchmarks" ON)
@@ -24,7 +30,7 @@ target_include_directories(libcoro4spdk PRIVATE ${spdk_root}/include)
 target_include_directories(libcoro4spdk PUBLIC include)
 
 if (ENABLE_BENCHMARK)
-add_subdirectory(benchmarks)
+  add_subdirectory(benchmarks)
 endif()
 
 function(add_test testname)
