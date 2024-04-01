@@ -1,14 +1,9 @@
 #include "rcu.hpp"
-#include "service.hpp"
-#include "spdk/env.h"
 #include "task.hpp"
-#include <atomic>
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
+#include "schedule.hpp"
+#include <gtest/gtest.h>
+#include "common.hpp"
 #include <cstdio>
-
-const char* json_file = "bdev.json";
-const char* bdev_dev = "Malloc0";
 
 struct Foo {
   int a = 0;
@@ -23,8 +18,8 @@ task<int> reader(int i) {
   Foo* p = gp;
 
   assert(p->a == 0 || p->a == 2);
-  REQUIRE(p->a == p->b);
-  REQUIRE(p->b == p->c);
+  EXPECT_TRUE(p->a == p->b);
+  EXPECT_TRUE(p->b == p->c);
 
   pmss::rcu::rcu_read_unlock();
 
@@ -46,15 +41,15 @@ task<int> writer(int i) {
   co_return 0;
 }
 
-TEST_CASE("rcu_test") {
+TEST(rcu_test, rcu_test) {
   pmss::init_service(3, json_file, bdev_dev);
   pmss::add_task(reader(1));
   pmss::add_task(writer(2));
   pmss::add_task(reader(3));
   pmss::run();
-  REQUIRE(gp != NULL);
-  REQUIRE(gp->a == 2);
-  REQUIRE(gp->b == 2);
-  REQUIRE(gp->c == 2);
+  EXPECT_TRUE(gp != NULL);
+  EXPECT_TRUE(gp->a == 2);
+  EXPECT_TRUE(gp->b == 2);
+  EXPECT_TRUE(gp->c == 2);
   pmss::deinit_service();
 }

@@ -1,11 +1,9 @@
 #include "task.hpp"
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
 #include <coroutine>
 #include <cstdio>
-#include <functional>
-#include <thread>
 #include <unistd.h>
+#include <gtest/gtest.h>
+#include "common.hpp"
 
 struct wakable {
   bool await_ready() const noexcept {
@@ -29,13 +27,13 @@ task<int> async_func(wakable& w) {
   co_return 1;
 }
 
-TEST_CASE("resume from subroutine", "subroutine") {
+TEST(resume_from_subroutine, subroutine) {
   wakable w{};
   auto t = async_func(w);
   t.start();
   printf("%pvs%p\n", t._h.address(), w._h.address());
   w.wakeup();
-  REQUIRE(t._h.promise()._value.value() == 1);
+  EXPECT_TRUE(t._h.promise()._value.value() == 1);
 }
 
 task<int> empty() {
@@ -46,10 +44,10 @@ task<int> async_func2() {
   co_return ret;
 }
 
-TEST_CASE("resume from empty", "empty") {
+TEST(resume_from_empty, empty) {
   auto t = async_func2();
   t.start();
-  REQUIRE(t.get().value() == 2);
+  EXPECT_TRUE(t.get().value() == 2);
 }
 
 task<int> async_wrapper(wakable& w) {
@@ -57,12 +55,12 @@ task<int> async_wrapper(wakable& w) {
   co_return ret;
 }
 
-TEST_CASE("subroutine wrapper", "subroutine") {
+TEST(subroutine_wrapper, subroutine) {
   wakable w;
   auto t = async_wrapper(w);
   t.start();
   w.wakeup();
-  REQUIRE(t.get().value() == 1);
+  EXPECT_TRUE(t.get().value() == 1);
 }
 
 task<void> empty_loop() {
@@ -70,7 +68,7 @@ task<void> empty_loop() {
     co_await empty();
   }
 }
-TEST_CASE("empty loop", "subroutine") {
+TEST(empty_loop, subroutine) {
   auto t = empty_loop();
   t.start();
 }

@@ -1,13 +1,8 @@
 #include "conditionvariable.hpp"
-#include "service.hpp"
-#include "spdk/env.h"
 #include "spinlock.hpp"
 #include "task.hpp"
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
-
-const char* json_file = "bdev.json";
-const char* bdev_dev = "Malloc0";
+#include <gtest/gtest.h>
+#include "common.hpp"
 
 async_simple::coro::SpinLock spinlock;
 async_simple::coro::ConditionVariable<async_simple::coro::SpinLock> cv;
@@ -29,7 +24,7 @@ task<int> consumer_1() {
   co_return 0;
 }
 
-TEST_CASE("condvar test 1", "subtest 1") {
+TEST(condvar_test_1, subtest_1) {
   pmss::init_service(2, json_file, bdev_dev);
   pmss::add_task(producer_1());
   pmss::add_task(consumer_1());
@@ -52,7 +47,7 @@ task<int> consumer_2() {
   co_return 0;
 }
 
-TEST_CASE("condvar test 2", "subtest 2") {
+TEST(condvar_test_2, subtest_2) {
   pmss::init_service(2, json_file, bdev_dev);
   pmss::add_task(producer_2());
   pmss::add_task(consumer_2());

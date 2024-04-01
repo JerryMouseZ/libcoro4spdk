@@ -1,16 +1,10 @@
 #include "mutex.hpp"
 #include "rcu.hpp"
-#include "service.hpp"
-#include "spdk/env.h"
 #include "spinlock.hpp"
 #include "task.hpp"
-#include <atomic>
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
 #include <cstdio>
-
-const char* json_file = "bdev.json";
-const char* bdev_dev = "Malloc0";
+#include <gtest/gtest.h>
+#include "common.hpp"
 
 struct Foo {
   int a = 0;
@@ -28,8 +22,8 @@ task<int> spinlock_reader(int i) {
   for (int i = 0; i < n_round; i++) {
     pmss::rcu::rcu_read_lock();
     Foo* p = pmss::rcu::rcu_dereference(gp);
-    REQUIRE(p->a == p->b);
-    REQUIRE(p->b == p->c);
+    EXPECT_TRUE(p->a == p->b);
+    EXPECT_TRUE(p->b == p->c);
     pmss::rcu::rcu_read_unlock();
 
     if (n_round % 1024 == 0) {
@@ -44,8 +38,8 @@ task<int> rcu_sync_reader(int i) {
   for (int i = 0; i < n_round; i++) {
     pmss::rcu::rcu_read_lock();
     Foo* p = pmss::rcu::rcu_dereference(gp);
-    REQUIRE(p->a == p->b);
-    REQUIRE(p->b == p->c);
+    EXPECT_TRUE(p->a == p->b);
+    EXPECT_TRUE(p->b == p->c);
     pmss::rcu::rcu_read_unlock();
 
     if (n_round % 1024 == 0)
@@ -59,8 +53,8 @@ task<int> mutex_reader(int i) {
   for (int i = 0; i < n_round; i++) {
     pmss::rcu::rcu_read_lock();
     Foo* p = pmss::rcu::rcu_dereference(gp);
-    REQUIRE(p->a == p->b);
-    REQUIRE(p->b == p->c);
+    EXPECT_TRUE(p->a == p->b);
+    EXPECT_TRUE(p->b == p->c);
     pmss::rcu::rcu_read_unlock();
 
     if (n_round % 1024 == 0) {
@@ -87,7 +81,7 @@ task<int> writer(int idx) {
   co_return 0;
 }
 
-TEST_CASE("rcu_schedule") {
+TEST(rcu_schedule, rcu_schedule) {
   pmss::init_service(3, json_file, bdev_dev);
   for (int i = 0; i < n_reader; i++) {
     pmss::add_task(spinlock_reader(i));
@@ -100,6 +94,6 @@ TEST_CASE("rcu_schedule") {
   }
 
   pmss::run();
-  REQUIRE(gp != NULL);
+  EXPECT_TRUE(gp != NULL);
   pmss::deinit_service();
 }

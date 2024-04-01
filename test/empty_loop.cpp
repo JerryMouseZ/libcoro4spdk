@@ -1,5 +1,5 @@
 #include "task.hpp"
-#include <assert.h>
+#include <gtest/gtest.h>
 
 task<int> empty() {
   co_return 2;
@@ -12,11 +12,8 @@ task<int> empty_loop() {
   co_return r;
 }
 
-int main(int argc, char* argv[]) {
+TEST(empty_test, empty_loop) {
   auto t = empty_loop();
   t.start();
-
-  assert(t.get().value() == 100000 * 2);
-
-  return 0;
+  EXPECT_TRUE(t.get().value() == 100000 * 2);
 }

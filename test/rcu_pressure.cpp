@@ -1,16 +1,8 @@
 #include "rcu.hpp"
-#include "service.hpp"
-#include "spdk/env.h"
-#include "mutex.hpp"
 #include "spinlock.hpp"
 #include "task.hpp"
-#include <atomic>
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
-#include <cstdio>
-
-const char* json_file = "bdev.json";
-const char* bdev_dev = "Malloc0";
+#include <gtest/gtest.h>
+#include "common.hpp"
 
 struct Foo {
   int a = 0;
@@ -29,8 +21,8 @@ task<int> reader(int idx) {
     pmss::rcu::rcu_read_lock();
 
     Foo* p = pmss::rcu::rcu_dereference(gp);
-    REQUIRE(p->a == p->b);
-    REQUIRE(p->b == p->c);
+    EXPECT_TRUE(p->a == p->b);
+    EXPECT_TRUE(p->b == p->c);
 
     /* std::atomic_thread_fence(std::memory_order_seq_cst); */
     pmss::rcu::rcu_read_unlock();
@@ -60,7 +52,7 @@ task<int> writer(int idx) {
   co_return 0;
 }
 
-TEST_CASE("rcu_pressure_test") {
+TEST(rcu_pressure_test, rcu_pressure_test) {
   pmss::init_service(32, json_file, bdev_dev);
   for (int i = 0; i < n_reader; i++) {
     pmss::add_task(reader(i));
@@ -69,8 +61,8 @@ TEST_CASE("rcu_pressure_test") {
     pmss::add_task(writer(i));
   }
   pmss::run();
-  REQUIRE(gp != nullptr);
-  REQUIRE(gp->a == gp->b);
-  REQUIRE(gp->b == gp->c);
+  EXPECT_TRUE(gp != nullptr);
+  EXPECT_TRUE(gp->a == gp->b);
+  EXPECT_TRUE(gp->b == gp->c);
   pmss::deinit_service();
 }

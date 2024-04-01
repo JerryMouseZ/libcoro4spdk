@@ -1,14 +1,8 @@
 #include "spinlock.hpp"
-#include "service.hpp"
-#include "spdk/env.h"
 #include "task.hpp"
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
-#include <cstdio>
-#include <mutex>
+#include <gtest/gtest.h>
+#include "common.hpp"
 
-const char* json_file = "bdev.json";
-const char* bdev_dev = "Malloc0";
 const int n_reactor = 1;
 const int n_round = 100000;
 
@@ -24,12 +18,12 @@ task<int> spinlock_test() {
   co_return 0;
 }
 
-TEST_CASE("spinlock", "simple_lock") {
+TEST(spinlock, simple_lock) {
   pmss::init_service(n_reactor, json_file, bdev_dev);
   for (int i = 0; i < n_reactor; i++) {
     pmss::add_task(spinlock_test());
   }
   pmss::run();
-  REQUIRE(i == n_reactor * n_round);
+  EXPECT_TRUE(i == n_reactor * n_round);
   pmss::deinit_service();
 }

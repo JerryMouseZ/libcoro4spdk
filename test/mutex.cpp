@@ -1,14 +1,8 @@
 #include "mutex.hpp"
-#include "service.hpp"
-#include "spdk/env.h"
+#include "schedule.hpp"
 #include "task.hpp"
-#include <catch2/catch_all.hpp>
-#include <catch2/catch_test_macros.hpp>
-#include <cstdio>
-#include <vector>
-
-const char* json_file = "bdev.json";
-const char* bdev_dev = "Malloc0";
+#include <gtest/gtest.h>
+#include "common.hpp"
 const int n_reactor = 8;
 const int n_round = 100000;
 
@@ -24,12 +18,12 @@ task<int> lock_test() {
   co_return 0;
 }
 
-TEST_CASE("mutex_lock", "simple_lock") {
+TEST(mutex_lock, simple_lock) {
   pmss::init_service(n_reactor, json_file, bdev_dev);
   for (int i = 0; i < n_reactor; ++i) {
     pmss::add_task(lock_test());
   }
   pmss::run();
-  REQUIRE(i == n_reactor * n_round);
+  EXPECT_TRUE(i == n_reactor * n_round);
   pmss::deinit_service();
 }
