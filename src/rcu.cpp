@@ -1,11 +1,7 @@
 #include "rcu.hpp"
-#include <pstl/glue_execution_defs.h>
 #include <algorithm>
 #include <atomic>
-#include <climits>
 #include "schedule.hpp"
-#include "conditionvariable.hpp"
-#include "mutex.hpp"
 #include "spdk/env.h"
 
 namespace pmss {
@@ -51,6 +47,68 @@ task<void> synchronize_rcu() {
       continue;
     while (writer_version > versions[i].load(std::memory_order_acquire)) {
       co_await yield();
+    }
+  }
+}
+
+thread_local call_rcu_data rcu_data;
+unsigned long rcu_data_enqueue(struct call_rcu_data* data,
+                               struct rcu_head* head) {
+  if (data->tail == nullptr) {
+    data->head = data->tail = head;
+  } else {
+    data->tail->next = head;
+    data->tail = head;
+  }
+  ++data->count;
+  return data->count;
+}
+
+// check current stage memory
+// if large trigger memory relaim
+// else push it to queue or launch a coroutine to free it
+// we let it a coroutine since it may free memory immediately when it has used lots of memory
+void call_rcu(struct rcu_head* head, void (*func)(struct rcu_head* head)) {
+  // assume that the address of the rcu_head is the same as the object
+  unsigned long writer_version =
+      sequencer.fetch_add(1, std::memory_order_acquire) + 1;
+  head->version = writer_version;
+  head->func = func;
+  unsigned long cnt = rcu_data_enqueue(&rcu_data, head);
+  if (cnt >= 1024)
+    thread_call_rcu();
+}
+
+void _free_rcu(struct rcu_head* head) {
+  // assume head is the first member of the structure
+  free((void*)head);
+}
+
+void free_rcu(struct rcu_head* head) {
+  call_rcu(head, _free_rcu);
+}
+
+void thread_call_rcu() {
+  // free memory call by the thread
+  int current_core = spdk_env_get_current_core();
+  unsigned long min_version = UINT_MAX;
+  for (int i = 0; i < num_threads; ++i) {
+    if (i == current_core)
+      continue;
+    min_version =
+        std::min(min_version, versions[i].load(std::memory_order_acquire));
+  }
+
+  rcu_head* node = rcu_data.head;
+  while (node) {
+    rcu_head* head = node;
+    node = node->next;
+    if (head->version > min_version)
+      break;
+    head->func(head);
+    rcu_data.head = node;
+    if (node == nullptr) {
+      rcu_data.tail = nullptr;
     }
   }
 }

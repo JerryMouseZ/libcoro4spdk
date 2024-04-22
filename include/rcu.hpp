@@ -7,6 +7,18 @@
 namespace pmss {
 namespace rcu {
 
+struct rcu_head {
+  struct rcu_head* next;
+  unsigned long version;
+  void (*func)(struct rcu_head* head);
+};
+
+struct call_rcu_data {
+  rcu_head* head;
+  rcu_head* tail;
+  unsigned long count;
+};
+
 void rcu_read_lock();
 void rcu_read_unlock();
 extern std::atomic<unsigned long> sequencer;
@@ -28,6 +40,7 @@ void rcu_init();
 
 void rcu_offline();
 
+void thread_call_rcu();
 }  // namespace rcu
 }  // namespace pmss
 #endif  // RCU_HPP
