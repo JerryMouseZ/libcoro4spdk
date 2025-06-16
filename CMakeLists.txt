@@ -1,8 +1,22 @@
-project(libcoro4spdk)
 cmake_minimum_required(VERSION 3.22)
+project(libcoro4spdk)
+
+enable_testing()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_COMPILER clang++)
+
+# Set SPDK paths
+set(spdk_root $ENV{spdk_root} CACHE PATH "Path to SPDK")
+if(NOT spdk_root)
+    set(spdk_root ${spdk_root} CACHE PATH "Path to SPDK" FORCE)
+endif()
+
+# Add SPDK include directory
+include_directories(${spdk_root}/include)
+
+# Add SPDK library path
+link_directories(${spdk_root}/build/lib)
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
   add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)

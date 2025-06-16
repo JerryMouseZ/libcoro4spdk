@@ -6,6 +6,8 @@ function(add_mytest testname)
     add_executable(${testname} ${testname}.cpp)
     # 链接 GTest 库和其他可能的库
     target_link_libraries(${testname} libcoro4spdk GTest::GTest GTest::Main)
+    # 注册到CTest
+    add_test(NAME ${testname} COMMAND ${testname})
 endfunction()
 
 # 获取当前 CMakeLists.txt 文件的目录
