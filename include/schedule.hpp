@@ -13,8 +13,8 @@
 
 // for scheduler
 namespace pmss {
-extern char device_name[16];
-extern char json_file[16];
+extern char device_name[64];
+extern char json_file[256];
 extern std::vector<task<int>> tasks;
 extern std::list<task<void>> wrapper_tasks;
 extern int num_threads;

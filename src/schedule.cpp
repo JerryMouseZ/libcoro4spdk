@@ -5,8 +5,8 @@
 namespace pmss {
 
 // for scheduler
-char device_name[16];
-char json_file[16];
+char device_name[64];
+char json_file[256];
 std::vector<task<int>> tasks;
 std::list<task<void>> wrapper_tasks;
 int num_threads;
@@ -26,6 +26,8 @@ void execute() {
   spdk_app_opts_init(&opts, sizeof(opts));
   opts.name = "spdk_service";
   opts.json_config_file = json_file;
+  opts.no_huge = true;
+  opts.mem_size = 1024;
   spdk_cpuset mask;
   spdk_cpuset_zero(&mask);
   for (int i = 0; i < num_threads; ++i) {
@@ -158,8 +160,10 @@ void init_service(int thread_num, const char* config_file,
   rcu::rcu_init();
   num_threads = thread_num;
   alive_tasks = 0;
-  strncpy(device_name, bdev_name, 15);
-  strncpy(json_file, config_file, 15);
+  strncpy(device_name, bdev_name, sizeof(device_name) - 1);
+  device_name[sizeof(device_name) - 1] = '\0';
+  strncpy(json_file, config_file, sizeof(json_file) - 1);
+  json_file[sizeof(json_file) - 1] = '\0';
 }
 
 void deinit_service() {

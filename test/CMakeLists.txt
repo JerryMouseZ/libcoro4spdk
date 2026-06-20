@@ -6,6 +6,8 @@ function(add_mytest testname)
     add_executable(${testname} ${testname}.cpp)
     # 链接 GTest 库和其他可能的库
     target_link_libraries(${testname} libcoro4spdk GTest::GTest GTest::Main)
+    target_compile_definitions(${testname} PRIVATE
+        PMSS_TEST_BDEV_JSON="${CMAKE_SOURCE_DIR}/bdev.json")
     # 注册到CTest
     add_test(NAME ${testname} COMMAND ${testname})
 endfunction()
@@ -20,4 +22,3 @@ foreach(SOURCE_FILE ${MY_SOURCE_FILES})
     # 添加测试并传递测试名称
     add_mytest(${SOURCE_FILE_NO_SUFFIX})
 endforeach()
-

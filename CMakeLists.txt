@@ -4,19 +4,13 @@ project(libcoro4spdk)
 enable_testing()
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set SPDK paths
-set(spdk_root $ENV{spdk_root} CACHE PATH "Path to SPDK")
-if(NOT spdk_root)
-    set(spdk_root ${spdk_root} CACHE PATH "Path to SPDK" FORCE)
+if(NOT DEFINED SPDK_LINK_LIBRARIES)
+  include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/SpdkDeps.cmake")
 endif()
 
-# Add SPDK include directory
-include_directories(${spdk_root}/include)
-
-# Add SPDK library path
-link_directories(${spdk_root}/build/lib)
+include_directories(${SPDK_INCLUDE_DIR})
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
   add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
